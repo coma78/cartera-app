@@ -33,6 +33,7 @@
       <header class="topbar">
         <button class="hamburger" id="hamburger" aria-label="Menú">☰</button>
         <h1 id="sec-title">Resumen</h1>
+        <button id="btn-eye" class="btn" title="Mostrar / ocultar montos">👁️ Montos</button>
         <button id="btn-run" class="btn primary">Generar reporte ahora</button>
       </header>
 
@@ -125,8 +126,6 @@
           <div class="panel-head">
             <h2>Tenencias</h2>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn danger" onclick="resetDb()">Empezar de 0</button>
-              <button class="btn" onclick="loadMyHoldings()">Cargar mis compras</button>
               <button class="btn" onclick="openImportForm()">Importar lista</button>
               <button class="btn primary" onclick="openHoldingForm()">+ Agregar tenencia</button>
             </div>

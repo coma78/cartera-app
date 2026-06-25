@@ -15,6 +15,9 @@ let CURRENT_SEC = 'resumen';
 let DIST_MODE = 'ticker';
 let LAST_CARTERA = { rows: [], view: 'lots' };
 const CHARTS = {};
+let HIDE_MONEY = true;          // por defecto los montos están ocultos
+const IDLE_MS = 5 * 60 * 1000;  // cierre de sesión por inactividad
+let idleTimer = null;
 
 function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
@@ -37,8 +40,11 @@ async function api(path, opts = {}) {
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;
-const money = (n) => n === null || n === undefined ? '—'
-  : (CONFIG.currency || 'USD') + ' ' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => {
+  if (n === null || n === undefined) return '—';
+  if (HIDE_MONEY) return '••••';
+  return (CONFIG.currency || 'USD') + ' ' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 const pctStr = (n) => n === null || n === undefined ? '—' : (n > 0 ? '+' : '') + round2(n) + '%';
 const cls = (n) => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-AR') : '—';
@@ -50,6 +56,27 @@ function toast(msg) {
 }
 function tagsHtml(obs) {
   return '<div class="tags">' + (obs || []).map(o => `<span class="tag">${o.text}</span>`).join('') + '</div>';
+}
+
+// ---------- Privacidad de montos (ojito) ----------
+function setEye() {
+  const b = document.getElementById('btn-eye');
+  if (!b) return;
+  b.textContent = HIDE_MONEY ? '👁️ Montos' : '🙈 Montos';
+  b.title = HIDE_MONEY ? 'Mostrar montos' : 'Ocultar montos';
+}
+function toggleMoney() { HIDE_MONEY = !HIDE_MONEY; setEye(); renderSection(CURRENT_SEC); }
+
+// ---------- Cierre por inactividad ----------
+function resetIdle() {
+  if (!CONFIG.sso) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { window.location.href = '/auth/logout'; }, IDLE_MS);
+}
+function startIdle() {
+  if (!CONFIG.sso) return;
+  ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(ev => document.addEventListener(ev, resetIdle, { passive: true }));
+  resetIdle();
 }
 
 // ---------- Navegación ----------
@@ -182,10 +209,20 @@ function renderDist() {
   } else {
     labels = rows.map(r => r.ticker); data = rows.map(r => r.positionValue);
   }
+  const total = data.reduce((a, b) => a + b, 0);
   drawChart('dist', 'chart-dist', {
     type: 'doughnut',
     data: { labels, datasets: [{ data, backgroundColor: palette(labels.length) }] },
-    options: { plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } }, maintainAspectRatio: false },
+    options: {
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: (ctx) => {
+          const v = ctx.parsed; const p = total ? Math.round((v / total) * 1000) / 10 : 0;
+          return HIDE_MONEY ? `${ctx.label}: ${p}%` : `${ctx.label}: ${money(v)} (${p}%)`;
+        } } },
+      },
+      maintainAspectRatio: false,
+    },
   });
 }
 
@@ -213,18 +250,15 @@ function renderEvolution() {
   const value = r.map(x => x.summary?.totalValue ?? null);
   const pct = r.map(x => x.summary?.totalPlPct ?? null);
   if (r.length < 1) { destroyChart('evo'); return; }
+  const datasets = [];
+  if (!HIDE_MONEY) datasets.push({ label: 'Valor', data: value, borderColor: '#1a5fb4', backgroundColor: 'rgba(26,95,180,.1)', yAxisID: 'y', tension: .25, fill: true });
+  datasets.push({ label: 'Rend. %', data: pct, borderColor: '#0a7d33', yAxisID: 'y1', tension: .25 });
   drawChart('evo', 'chart-evo', {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Valor', data: value, borderColor: '#1a5fb4', backgroundColor: 'rgba(26,95,180,.1)', yAxisID: 'y', tension: .25, fill: true },
-        { label: 'Rend. %', data: pct, borderColor: '#0a7d33', yAxisID: 'y1', tension: .25 },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      scales: { y: { position: 'left' }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } },
+      scales: { y: { position: 'left', display: !HIDE_MONEY }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } },
     },
   });
 }
@@ -587,6 +621,7 @@ async function loadConfig() {
 function bindEvents() {
   document.querySelectorAll('.nav-item').forEach(n => n.onclick = () => showSection(n.dataset.sec));
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('btn-eye').onclick = toggleMoney;
   ['f-view', 'f-type', 'f-ticker', 'f-year', 'f-from', 'f-to', 'f-pl', 'f-pagesize'].forEach(id => {
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; renderCartera(); });
   });
@@ -611,6 +646,8 @@ function bindEvents() {
 (async function init() {
   bindEvents();
   await loadConfig();
+  setEye();
+  startIdle();
   try { RATIOS = await api('/ratios'); } catch (e) { RATIOS = {}; }
   CURRENT_SEC = localStorage.getItem(SEC_KEY) || 'resumen';
   await loadAll();
