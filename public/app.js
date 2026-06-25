@@ -82,7 +82,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', tickers: 'Tickers', tenencias: 'Tenencias', reportes: 'Reportes diarios' };
+const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', sugerencias: 'Sugerencias', tickers: 'Tickers', tenencias: 'Tenencias', reportes: 'Reportes diarios' };
 function showSection(sec) {
   CURRENT_SEC = sec;
   localStorage.setItem(SEC_KEY, sec);
@@ -96,6 +96,7 @@ function showSection(sec) {
 function renderSection(sec) {
   if (sec === 'resumen') renderResumen();
   else if (sec === 'cartera') renderCartera();
+  else if (sec === 'sugerencias') renderSugerencias();
   else if (sec === 'tickers') renderCatalog();
   else if (sec === 'tenencias') renderManage();
   else if (sec === 'reportes') renderReportsList();
@@ -464,6 +465,62 @@ function renderManage() {
       </tr>`).join('')}</tbody></table>`;
 }
 
+// ---------- SUGERENCIAS ----------
+function renderSugerencias() {
+  const badge = document.getElementById('ai-badge');
+  if (badge) badge.textContent = CONFIG.aiEnabled ? '🤖 IA activa' : 'IA no configurada — explicación automática';
+  const cont = document.getElementById('sg-tickers');
+  if (!CATALOG.length) cont.innerHTML = '<span class="muted-sm">Cargá tickers primero (sección Tickers).</span>';
+  else cont.innerHTML = CATALOG.map(c => `<label class="sg-chk"><input type="checkbox" class="sg-tk" value="${c.ticker}" checked> ${c.ticker}</label>`).join('');
+}
+
+async function computeSuggest() {
+  const amount = parseFloat(document.getElementById('sg-amount').value);
+  if (!(amount > 0)) return toast('Ingresá un monto válido');
+  const include = [...document.querySelectorAll('.sg-tk:checked')].map(x => x.value);
+  if (!include.length) return toast('Elegí al menos un ticker');
+  const body = {
+    amount,
+    risk: document.getElementById('sg-risk').value,
+    strategy: document.getElementById('sg-strategy').value,
+    maxPerTicker: parseFloat(document.getElementById('sg-maxticker').value) || null,
+    maxPerType: parseFloat(document.getElementById('sg-maxtype').value) || null,
+    include,
+    note: document.getElementById('sg-note').value,
+  };
+  const btn = document.getElementById('sg-go'); btn.disabled = true; btn.textContent = 'Calculando…';
+  try {
+    const data = await api('/suggest', { method: 'POST', body: JSON.stringify(body) });
+    renderSuggestResult(data);
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = 'Calcular';
+}
+
+function renderSuggestResult(data) {
+  const p = data.plan;
+  const rows = p.rows.filter(r => r.cedears > 0);
+  const expl = data.aiRationale || data.rationale;
+  const explTitle = data.aiRationale ? 'Comentario del modelo (IA)' : 'Resumen';
+  document.getElementById('sg-result').innerHTML = `
+    <div class="totals-strip">
+      <span>A invertir: <b>${money(p.amount)}</b></span>
+      <span>Distribuido: <b>${money(p.invested)}</b></span>
+      <span>Sobrante: <b>${money(p.leftover)}</b></span>
+      <span>Cartera resultante: <b>${money(p.resultingTotal)}</b></span>
+    </div>
+    ${rows.length ? `<table><thead><tr>
+      <th>Ticker</th><th class="num">Comprar</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
+    </tr></thead><tbody>${rows.map(r => `
+      <tr>
+        <td><b>${r.ticker}</b> <span class="muted-sm">${r.type}</span></td>
+        <td class="num"><b>${r.cedears}</b></td>
+        <td class="num hide-sm">${money(r.cedearPrice)}</td>
+        <td class="num hide-sm">${money(r.buyMoney)}</td>
+        <td class="num"><span class="muted-sm">${r.currentWeight}% → ${r.targetWeight}% →</span> <b>${r.resultingWeight}%</b></td>
+      </tr>`).join('')}</tbody></table>` : '<div class="empty">No hay compras sugeridas con esos parámetros.</div>'}
+    <div class="rationale">💡 <b>${explTitle}:</b> ${expl}</div>`;
+}
+
 // ---------- REPORTES ----------
 function renderReportsList() {
   const el = document.getElementById('reports-list');
@@ -658,6 +715,7 @@ function bindEvents() {
   document.querySelectorAll('.nav-item').forEach(n => n.onclick = () => showSection(n.dataset.sec));
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('btn-eye').onclick = toggleMoney;
+  document.getElementById('sg-go').onclick = computeSuggest;
   document.getElementById('chk-daily-email').addEventListener('change', async function () {
     try {
       SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ dailyEmail: this.checked }) });

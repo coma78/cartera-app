@@ -16,6 +16,8 @@ import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
+import { computeSuggestion, templateRationale } from './advisor.js';
+import { aiEnabled, aiRationale } from './ai.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +51,7 @@ app.get('/api/config', (req, res) => res.json({
   provider: providerInfo.PROVIDER,
   marketKey: providerInfo.hasKey,
   emailConfigured: emailConfigured(),
+  aiEnabled: aiEnabled(),
   sso: ssoEnabled(),
   user: currentUser(req),
   authRequired: !!APP_TOKEN,
@@ -137,6 +140,33 @@ app.post('/api/ratio-change', wrap(async (req, res) => {
 app.delete('/api/watchlist/:id', wrap(async (req, res) => {
   await deleteWatch(Number(req.params.id));
   res.json({ ok: true });
+}));
+
+// ---- Sugerencias de inversión (motor de reglas + IA opcional) ----
+app.post('/api/suggest', wrap(async (req, res) => {
+  const { amount, risk, strategy, maxPerTicker, maxPerType, include, exclude, note } = req.body || {};
+  const { summary } = await buildReport({ withNews: false });
+
+  // Valor y P/G acumulado por ticker (de lo que ya tenés)
+  const held = {};
+  for (const h of summary.holdings) {
+    const g = (held[h.ticker] ??= { value: 0, cost: 0 });
+    g.value += h.positionValue || 0;
+    g.cost += h.positionCost || 0;
+  }
+  // Items elegibles = catálogo con cotización
+  let items = summary.watch.map(w => ({
+    ticker: w.ticker, type: w.type, price: w.price, ratio: w.ratio,
+    currentValue: held[w.ticker] ? held[w.ticker].value : 0,
+    plPct: held[w.ticker] && held[w.ticker].cost > 0 ? ((held[w.ticker].value - held[w.ticker].cost) / held[w.ticker].cost * 100) : null,
+  }));
+  if (Array.isArray(include) && include.length) items = items.filter(i => include.includes(i.ticker));
+  if (Array.isArray(exclude) && exclude.length) items = items.filter(i => !exclude.includes(i.ticker));
+
+  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy, maxPerTicker, maxPerType } });
+  const rationale = templateRationale(plan);
+  const ai = await aiRationale(plan, note);
+  res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled() });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----
