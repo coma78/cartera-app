@@ -17,7 +17,7 @@ import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
-import { aiEnabled, aiRationale, aiScores as aiScoresFn } from './ai.js';
+import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError } from './ai.js';
 import { signalsEnabled, getSignals, momentumScore, lastSignalError } from './signals.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
@@ -177,7 +177,7 @@ app.post('/api/suggest', wrap(async (req, res) => {
       const sig = await getSignals(items.map(i => i.ticker)); // {} si no hay FMP
       const sc = await aiScoresFn(items, { risk, note, signals: sig });
       if (sc && sc.scores) { scores = sc.scores; aiAnalysis = sc.rationale; }
-      else { strat = 'rebalance'; notice = 'No se pudo obtener el análisis de IA. Se usó rebalanceo.'; }
+      else { strat = 'rebalance'; const err = lastAiError(); notice = 'No se pudo obtener el análisis de IA' + (err ? ` — ${err}` : '') + '. Se usó rebalanceo.'; }
     }
   } else if (strategy === 'momentum') {
     if (!signalsEnabled()) {
