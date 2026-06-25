@@ -52,6 +52,8 @@ tr:last-child td { border-bottom: none; }
   border-radius: 9px; padding: 8px 14px; font-size: 13px; cursor: pointer; text-decoration: none;
 }
 .btn:hover { background: #f7f8fa; }
+.btn.danger { color: var(--red); border-color: #f3c6c1; }
+.btn.danger:hover { background: #fdecea; }
 .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
 .btn.primary:hover { background: #144c91; }
 .btn:disabled { opacity: .6; cursor: default; }

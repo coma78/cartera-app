@@ -150,6 +150,14 @@ export async function deleteWatch(id) {
   await query('DELETE FROM watchlist WHERE id = $1', [id]);
 }
 
+export async function deleteAllWatch() {
+  await query('DELETE FROM watchlist');
+}
+
+export async function deleteAllReports() {
+  await query('DELETE FROM reports');
+}
+
 // ---------- Reports ----------
 export async function saveReport({ summary, html, emailed }) {
   const { rows } = await query(

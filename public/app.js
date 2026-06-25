@@ -17,6 +17,8 @@ async function api(path, opts = {}) {
   if (token()) headers['x-app-token'] = token();
   const res = await fetch('/api' + path, { ...opts, headers });
   if (res.status === 401) {
+    const body = await res.json().catch(() => ({}));
+    if (body.login) { window.location.href = body.login; return new Promise(() => {}); } // SSO: ir al login
     const t = prompt('Esta app pide un token de acceso. Ingresalo:');
     if (t) { localStorage.setItem(TOKEN_KEY, t); return api(path, opts); }
     throw new Error('No autorizado');
@@ -341,11 +343,25 @@ function openWatchForm(w = null) {
 async function loadSuggestedTickers() {
   if (!confirm('¿Cargar los tickers sugeridos con sus ratios (AVGO, MSFT, GOOGL, etc.)?')) return;
   try {
-    const entries = Object.entries(RATIOS);
-    for (const [ticker, ratio] of entries) {
-      await api('/watchlist', { method: 'POST', body: JSON.stringify({ ticker, ratio }) });
-    }
-    toast(`Cargados ${entries.length} tickers`); loadAll();
+    const r = await api('/admin/seed-tickers', { method: 'POST', body: '{}' });
+    toast(`Cargados ${r.tickers} tickers`); loadAll();
+  } catch (e) { toast(e.message); }
+}
+
+async function loadMyHoldings() {
+  if (!confirm('¿Cargar tus compras desde el archivo incluido (data/holdings.json)?')) return;
+  try {
+    const r = await api('/admin/seed-holdings', { method: 'POST', body: JSON.stringify({ reset: false }) });
+    toast(`Cargadas ${r.inserted} compras · ${r.tickers} tickers`); loadAll();
+  } catch (e) { toast(e.message); }
+}
+
+async function resetDb() {
+  if (!confirm('Esto borra TODO: tenencias, tickers y reportes. ¿Empezar de 0?')) return;
+  if (!confirm('Confirmá una vez más: se borra todo y no se puede deshacer.')) return;
+  try {
+    await api('/admin/reset', { method: 'POST', body: '{}' });
+    toast('Base limpia. Cargá tickers y compras.'); loadAll(); loadReports();
   } catch (e) { toast(e.message); }
 }
 
@@ -421,6 +437,11 @@ async function loadConfig() {
     parts.push(`reporte ${String(CONFIG.reportHour).padStart(2, '0')}:${String(CONFIG.reportMinute).padStart(2, '0')}`);
     pill.textContent = parts.join(' · ');
     pill.className = 'pill ' + (CONFIG.marketKey && CONFIG.emailConfigured ? 'ok' : 'warn');
+    if (CONFIG.sso && CONFIG.user) {
+      const up = document.getElementById('user-pill');
+      up.textContent = CONFIG.user; up.className = 'pill ok';
+      document.getElementById('logout-link').style.display = '';
+    }
   } catch (e) { /* noop */ }
 }
 

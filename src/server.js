@@ -1,5 +1,6 @@
 import express from 'express';
 import cron from 'node-cron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,25 +8,31 @@ import {
   migrate,
   listHoldings, addHolding, updateHolding, deleteHolding,
   deleteAllHoldings, addHoldingsBulk,
-  listWatchlist, addWatch, updateWatch, deleteWatch,
-  listReports, latestReport,
+  listWatchlist, addWatch, updateWatch, deleteWatch, deleteAllWatch,
+  listReports, latestReport, deleteAllReports,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
+import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json());
 
 const APP_TOKEN = process.env.APP_TOKEN || '';
 
-// ---- Auth opcional para /api ----
+// ---- Rutas de login (Google SSO) ----
+installAuth(app);
+
+// ---- Guardia para /api ----
 app.use('/api', (req, res, next) => {
   if (req.path === '/health') return next();
-  if (!APP_TOKEN) return next();
-  const token = req.get('x-app-token') || req.query.token;
+  if (ssoEnabled()) return apiGuard(req, res, next);       // SSO tiene prioridad
+  if (!APP_TOKEN) return next();                           // modo abierto (local)
+  const token = req.get('x-app-token') || req.query.token; // modo token
   if (token === APP_TOKEN) return next();
   return res.status(401).json({ error: 'No autorizado' });
 });
@@ -37,14 +44,43 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((e) => {
 
 // ---- Salud / config ----
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/config', (_req, res) => res.json({
+app.get('/api/config', (req, res) => res.json({
   provider: providerInfo.PROVIDER,
   marketKey: providerInfo.hasKey,
   emailConfigured: emailConfigured(),
+  sso: ssoEnabled(),
+  user: currentUser(req),
   authRequired: !!APP_TOKEN,
   reportHour: Number(process.env.REPORT_HOUR ?? 8),
   reportMinute: Number(process.env.REPORT_MINUTE ?? 0),
   tz: process.env.TZ || 'UTC',
+}));
+
+// ---- Admin: reset y carga masiva desde archivos ----
+app.post('/api/admin/reset', wrap(async (_req, res) => {
+  await deleteAllHoldings();
+  await deleteAllWatch();
+  await deleteAllReports();
+  res.json({ ok: true });
+}));
+app.post('/api/admin/seed-tickers', wrap(async (_req, res) => {
+  let n = 0;
+  for (const [ticker, ratio] of Object.entries(CEDEAR_RATIOS)) { await addWatch({ ticker, ratio }); n++; }
+  res.json({ tickers: n });
+}));
+app.post('/api/admin/seed-holdings', wrap(async (_req, res) => {
+  const file = path.join(__dirname, '..', 'data', 'holdings.json');
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'No existe data/holdings.json' });
+  const items = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (_req.body?.reset) await deleteAllHoldings();
+  const inserted = await addHoldingsBulk(items);
+  const seen = new Set();
+  for (const it of items) {
+    const t = (it.ticker || '').toUpperCase().trim();
+    if (!t || seen.has(t)) continue; seen.add(t);
+    try { await addWatch({ ticker: t, ratio: it.ratio }); } catch { /* noop */ }
+  }
+  res.json({ inserted, tickers: seen.size });
 }));
 
 // ---- Ratios CEDEAR sugeridos ----
@@ -114,7 +150,8 @@ app.get('/api/reports/latest', wrap(async (_req, res) => {
   res.set('Content-Type', 'text/html').send(r.html);
 }));
 
-// ---- Static UI ----
+// ---- Static UI (la portada pide login si el SSO está activo) ----
+app.get('/', pageGuard, (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- Arranque ----

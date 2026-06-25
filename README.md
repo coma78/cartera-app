@@ -24,10 +24,15 @@ Convención de carga (igual que una planilla de compras):
 - También cargás la **fecha de compra**.
 - Tickers cuyo símbolo difiere del de EEUU se mapean solos (ej. `BRKB` → `BRK.B`).
 
-### Cargar tus compras (dos formas)
+### Cargar datos (botones de 1 clic — recomendado)
 
-1. **Desde la web (recomendado):** botón **Importar lista** → pegás las filas `fecha · ticker · precio acción · nominales` (ej. `13/8/24  MSFT  $ 410,75  10`). Reconoce el formato con `$`, miles con `.` y decimales con `,`. Tildá *Reemplazar* si querés re-importar desde cero.
-2. **Desde la terminal:** las compras vienen precargadas en `data/holdings.json`. Con `DATABASE_URL` apuntando a tu base: `npm run seed` (o `npm run seed -- --reset` para borrar antes).
+En la web, arriba de todo:
+
+1. **Empezar de 0** (en el panel de Tickers): borra tenencias, tickers y reportes.
+2. **Cargar sugeridos** (panel Tickers): carga los 18 tickers con sus ratios.
+3. **Cargar mis compras** (panel Cartera): carga las 142 compras desde `data/holdings.json` (y registra sus tickers).
+
+Otras formas: botón **Importar lista** (pegar `fecha · ticker · precio acción · nominales`) o, por terminal, `npm run seed` (lee `data/holdings.json`).
 
 > Ratios precargados: AVGO 39, BRKB 22, EEM 5, EWZ 2, FXI 5, GOOGL 58, JPM 15, MELI 120, META 25, MSFT 30, NU 2, PFE 4, QQQ 20, SPY 20, SPXL 25, TQQQ 25, VEA 10, XLV 29.
 
@@ -113,14 +118,31 @@ En Railway → app → **Variables**:
 
 > Después de agregar variables, Railway redeploya solo.
 
-### 7. Abrir la app
+### 7. Abrir la app y fijar el dominio
 1. En Railway → app → **Settings** → **Networking** → **Generate Domain**.
-2. Abrí la URL que te da. Vas a ver el dashboard.
+2. Copiá esa URL (ej. `https://cartera-app.up.railway.app`). La vas a necesitar abajo.
+3. En **Variables** agregá `BASE_URL` = esa URL (sin barra final).
 
-### 8. Cargar tu cartera y probar
-1. Clic en **+ Agregar tenencia**: ticker (ej. `AAPL`), precio de compra y cantidad.
-2. Agregá tus **tickers de interés** en la otra sección.
-3. Clic en **Generar reporte ahora** para probar el mail al instante (revisá tu casilla).
+### 8. Login con Google (SSO)
+1. Entrá a **console.cloud.google.com** → creá un proyecto (o usá uno).
+2. **APIs y servicios → Pantalla de consentimiento OAuth**: tipo *Externo*, completá nombre y tu mail, y en *Usuarios de prueba* agregá `gascazur@gmail.com`.
+3. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth** → tipo *Aplicación web*.
+   - **Orígenes autorizados de JavaScript:** tu `BASE_URL`.
+   - **URIs de redirección autorizados:** `BASE_URL` + `/auth/callback` (ej. `https://cartera-app.up.railway.app/auth/callback`).
+4. Copiá el **Client ID** y el **Client secret**.
+5. En Railway → **Variables**, agregá:
+   - `GOOGLE_CLIENT_ID` = *(tu client id)*
+   - `GOOGLE_CLIENT_SECRET` = *(tu client secret)*
+   - `SESSION_SECRET` = *(una cadena larga al azar)*
+   - `ALLOWED_EMAILS` = `gascazur@gmail.com`  *(solo vos podés entrar)*
+6. Listo: al abrir la app te va a pedir **Ingresar con Google**. Solo tu cuenta tiene acceso.
+
+> Sin `GOOGLE_CLIENT_ID` el SSO queda desactivado (útil para probar en local).
+
+### 9. Cargar datos y probar
+1. **Empezar de 0** → **Cargar sugeridos** (tickers) → **Cargar mis compras** (142 desde el archivo).
+2. Usá los **filtros** (tipo, ticker, año, fechas, ganadoras/perdedoras) y el **toggle** lotes/consolidado; los totales se ajustan al filtro.
+3. Clic en **Generar reporte ahora** para probar el mail al instante.
 4. A partir de ahí, el reporte sale solo todos los días a la hora configurada.
 
 ---

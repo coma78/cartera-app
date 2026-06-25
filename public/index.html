@@ -11,6 +11,8 @@
     <h1>📈 Mi Cartera</h1>
     <div class="header-actions">
       <span id="status-pill" class="pill">cargando…</span>
+      <span id="user-pill" class="pill"></span>
+      <a id="logout-link" class="btn" href="/auth/logout" style="display:none">Salir</a>
       <button id="btn-run" class="btn primary">Generar reporte ahora</button>
     </div>
   </header>
@@ -28,7 +30,8 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Tickers <span class="muted-sm">(lista de deseables)</span></h2>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn danger" onclick="resetDb()">Empezar de 0</button>
           <button class="btn" onclick="loadSuggestedTickers()">Cargar sugeridos</button>
           <button class="btn" onclick="openWatchForm()">+ Agregar ticker</button>
         </div>
@@ -40,7 +43,8 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Tu cartera</h2>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="loadMyHoldings()">Cargar mis compras</button>
           <button class="btn" onclick="openImportForm()">Importar lista</button>
           <button class="btn" onclick="openHoldingForm()">+ Agregar tenencia</button>
         </div>
