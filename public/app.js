@@ -104,14 +104,28 @@ function renderSection(sec) {
 async function refreshCatalog() {
   try { CATALOG = await api('/watchlist'); } catch (e) { CATALOG = []; }
 }
-async function loadDashboard() {
+async function loadDashboard(fresh = false) {
   let data;
-  try { data = await api('/dashboard'); }
+  try { data = await api('/dashboard' + (fresh ? '?fresh=1' : '')); }
   catch (e) { toast('Error al cargar: ' + e.message); return; }
   HOLDINGS = data.holdings || [];
   WATCHLIVE = data.watch || [];
   populateFilterOptions();
+  const u = document.getElementById('quotes-updated');
+  if (u) u.textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   if (data.errors && data.errors.length) toast('Sin datos para: ' + data.errors.map(e => e.ticker).join(', '));
+}
+
+// Refresca cotizaciones del día (ignora el caché) y vuelve a dibujar
+async function refreshQuotes() {
+  const b = document.getElementById('btn-refresh');
+  const orig = b.textContent; b.disabled = true; b.textContent = 'Actualizando…';
+  try {
+    await loadDashboard(true);
+    renderSection(CURRENT_SEC);
+    toast('Cotizaciones actualizadas');
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = orig;
 }
 async function loadReports() {
   REPORTS = await api('/reports').catch(() => []);

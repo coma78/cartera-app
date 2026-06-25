@@ -142,4 +142,26 @@ export async function getQuoteSafe(symbol, withNews = false) {
   }
 }
 
+// ---- Caché de cotizaciones (TTL) + batch en paralelo ----
+const _cache = new Map(); // ticker -> { ts, result }
+
+export async function getQuoteSafeCached(symbol, maxAgeMs = 60000) {
+  const sym = symbol.toUpperCase().trim();
+  const c = _cache.get(sym);
+  if (c && maxAgeMs > 0 && (Date.now() - c.ts) < maxAgeMs) return c.result;
+  const result = await getQuoteSafe(sym, false);
+  // Sólo cacheamos resultados OK (no queremos pegarnos un error por 60s).
+  if (result.ok) _cache.set(sym, { ts: Date.now(), result });
+  return result;
+}
+
+// Devuelve un Map ticker -> resultado, cotizando los únicos EN PARALELO.
+export async function getQuotesBatch(tickers, maxAgeMs = 60000) {
+  const uniq = [...new Set((tickers || []).map(t => t.toUpperCase().trim()).filter(Boolean))];
+  const results = await Promise.all(uniq.map(t => getQuoteSafeCached(t, maxAgeMs)));
+  const map = new Map();
+  uniq.forEach((t, i) => map.set(t, results[i]));
+  return map;
+}
+
 export const providerInfo = { PROVIDER, hasKey: !!KEY };

@@ -140,8 +140,9 @@ app.delete('/api/watchlist/:id', wrap(async (req, res) => {
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----
-app.get('/api/dashboard', wrap(async (_req, res) => {
-  const { summary } = await buildReport();
+app.get('/api/dashboard', wrap(async (req, res) => {
+  const fresh = req.query.fresh === '1' || req.query.fresh === 'true';
+  const { summary } = await buildReport({ withNews: false, maxAgeMs: fresh ? 0 : 60000 });
   res.json(summary);
 }));
 

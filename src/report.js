@@ -1,5 +1,5 @@
 import { listHoldings, listWatchlist, saveReport } from './db.js';
-import { getQuoteSafe, getNews } from './marketData.js';
+import { getQuotesBatch, getNews } from './marketData.js';
 import { analyzeHolding, analyzeWatch, portfolioSummary } from './analysis.js';
 import { tickerType } from './ratios.js';
 import { sendEmail, emailConfigured } from './email.js';
@@ -37,37 +37,40 @@ function degradedHolding(h) {
 }
 
 // Construye el objeto de reporte completo (datos + HTML), sin enviar ni guardar.
-export async function buildReport() {
+//  - withNews: trae noticias (sólo hace falta para el mail, no para el dashboard).
+//  - maxAgeMs: edad máxima del caché de cotizaciones (0 = forzar datos frescos).
+export async function buildReport({ withNews = false, maxAgeMs = 60000 } = {}) {
   const [holdings, watch] = await Promise.all([listHoldings(), listWatchlist()]);
 
-  // Cotizamos UNA sola vez por ticker (no por cada tenencia) para no
-  // pegarle de más a la API y que no se corte por límite de pedidos.
-  const quoteCache = new Map();
-  const getQ = async (ticker) => {
-    if (!quoteCache.has(ticker)) quoteCache.set(ticker, await getQuoteSafe(ticker, false));
-    return quoteCache.get(ticker);
-  };
+  // Cotizamos los tickers únicos EN PARALELO (con caché por TTL).
+  const tickers = [...holdings.map(h => h.ticker), ...watch.map(w => w.ticker)];
+  const quotes = await getQuotesBatch(tickers, maxAgeMs);
+  const qOf = (t) => quotes.get((t || '').toUpperCase().trim());
 
   const holdingResults = [];
   const errors = [];
   for (const h of holdings) {
-    const r = await getQ(h.ticker);
-    if (r.ok) holdingResults.push(analyzeHolding(h, r.quote));
-    else { holdingResults.push(degradedHolding(h)); }
+    const r = qOf(h.ticker);
+    if (r && r.ok) holdingResults.push(analyzeHolding(h, r.quote));
+    else holdingResults.push(degradedHolding(h));
+  }
+
+  // Noticias sólo si se piden (mail), en paralelo y por ticker único.
+  const newsMap = new Map();
+  if (withNews) {
+    const wts = [...new Set(watch.map(w => w.ticker.toUpperCase().trim()))];
+    const ns = await Promise.all(wts.map(t => getNews(t)));
+    wts.forEach((t, i) => newsMap.set(t, ns[i]));
   }
 
   const watchResults = [];
   for (const w of watch) {
-    const r = await getQ(w.ticker);
-    if (r.ok) {
-      const news = await getNews(w.ticker); // una vez por ticker de la watchlist (son únicos)
-      watchResults.push(analyzeWatch(w, r.quote, news));
-    } else {
-      errors.push({ ticker: w.ticker, error: r.error });
-    }
+    const r = qOf(w.ticker);
+    if (r && r.ok) watchResults.push(analyzeWatch(w, r.quote, newsMap.get(w.ticker.toUpperCase().trim()) || []));
+    else errors.push({ ticker: w.ticker, error: r ? r.error : 'sin datos' });
   }
-  // Tickers que no pudieron cotizar (únicos)
-  for (const [tk, r] of quoteCache) if (!r.ok && !errors.find((e) => e.ticker === tk)) errors.push({ ticker: tk, error: r.error });
+  // Tickers que no cotizaron (únicos)
+  for (const [tk, r] of quotes) if (!r.ok && !errors.find((e) => e.ticker === tk)) errors.push({ ticker: tk, error: r.error });
 
   const summary = portfolioSummary(holdingResults);
   const generatedAt = new Date().toISOString();
@@ -82,7 +85,8 @@ export async function buildReport() {
 
 // Genera, guarda y (opcional) envia el reporte.
 export async function generateReport({ send = true } = {}) {
-  const { summary, html } = await buildReport();
+  // El reporte (mail/snapshot) usa datos frescos e incluye noticias.
+  const { summary, html } = await buildReport({ withNews: true, maxAgeMs: 0 });
 
   let emailResult = { sent: false, reason: 'No solicitado' };
   if (send && emailConfigured()) {

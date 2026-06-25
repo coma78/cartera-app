@@ -72,7 +72,11 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Cartera</h2>
-            <button class="btn" onclick="exportCsv()">Exportar CSV</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span id="quotes-updated" class="muted-sm"></span>
+              <button class="btn" id="btn-refresh" onclick="refreshQuotes()">🔄 Actualizar cotizaciones</button>
+              <button class="btn" onclick="exportCsv()">Exportar CSV</button>
+            </div>
           </div>
           <div class="filters" id="filters">
             <label>Vista
