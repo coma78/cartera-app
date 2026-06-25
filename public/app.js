@@ -14,6 +14,7 @@ let SETTINGS = { dailyEmail: true };
 let PAGE = 1;
 let CURRENT_SEC = 'resumen';
 let DIST_MODE = 'ticker';
+let EVO_MODE = 'mercado';
 let LAST_CARTERA = { rows: [], view: 'lots' };
 const CHARTS = {};
 let HIDE_MONEY = true;          // por defecto los montos están ocultos
@@ -268,18 +269,32 @@ function renderWinLoss() {
 function renderEvolution() {
   const r = [...REPORTS].reverse(); // cronologico
   const labels = r.map(x => new Date(x.created_at).toLocaleDateString('es-AR'));
-  const value = r.map(x => x.summary?.totalValue ?? null);
   const pct = r.map(x => x.summary?.totalPlPct ?? null);
   if (r.length < 1) { destroyChart('evo'); return; }
-  const datasets = [];
-  if (!HIDE_MONEY) datasets.push({ label: 'Valor', data: value, borderColor: '#1a5fb4', backgroundColor: 'rgba(26,95,180,.1)', yAxisID: 'y', tension: .25, fill: true });
-  datasets.push({ label: 'Rend. %', data: pct, borderColor: '#0a7d33', yAxisID: 'y1', tension: .25 });
+  let datasets, scales;
+  if (EVO_MODE === 'capital') {
+    // Aportes/retiros: valor de mercado vs. capital invertido
+    const value = r.map(x => x.summary?.totalValue ?? null);
+    const cost = r.map(x => x.summary?.totalCost ?? null);
+    datasets = [
+      { label: 'Valor de mercado', data: value, borderColor: '#1a5fb4', backgroundColor: 'rgba(26,95,180,.1)', tension: .25, fill: true },
+      { label: 'Capital invertido', data: cost, borderColor: '#7a8190', borderDash: [5, 4], tension: .25 },
+    ];
+    scales = { y: { position: 'left', ticks: { display: !HIDE_MONEY } } };
+  } else {
+    // Mercado: rendimiento % (performance pura, no afectada por aportes)
+    datasets = [{ label: 'Rendimiento %', data: pct, borderColor: '#0a7d33', backgroundColor: 'rgba(10,125,51,.1)', tension: .25, fill: true }];
+    scales = { y: { position: 'left', ticks: { callback: v => v + '%' } } };
+  }
   drawChart('evo', 'chart-evo', {
     type: 'line',
     data: { labels, datasets },
     options: {
       maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      scales: { y: { position: 'left', display: !HIDE_MONEY }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } },
+      plugins: { tooltip: { callbacks: { label: (ctx) =>
+        EVO_MODE === 'capital' ? `${ctx.dataset.label}: ${money(ctx.parsed.y)}` : `${ctx.dataset.label}: ${ctx.parsed.y}%`
+      } } },
+      scales,
     },
   });
 }
@@ -655,8 +670,10 @@ function bindEvents() {
   document.getElementById('prev-page').onclick = () => { if (PAGE > 1) { PAGE--; renderCartera(); } };
   document.getElementById('next-page').onclick = () => { PAGE++; renderCartera(); };
   document.querySelectorAll('.seg-btn').forEach(b => b.onclick = () => {
-    document.querySelectorAll('.seg-btn').forEach(x => x.classList.remove('active'));
-    b.classList.add('active'); DIST_MODE = b.dataset.dist; renderDist();
+    b.parentElement.querySelectorAll('.seg-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    if (b.dataset.dist) { DIST_MODE = b.dataset.dist; renderDist(); }
+    if (b.dataset.evo) { EVO_MODE = b.dataset.evo; renderEvolution(); }
   });
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
