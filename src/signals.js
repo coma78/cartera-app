@@ -26,22 +26,15 @@ async function fetchJson(url) {
   return { ok: true, body };
 }
 
-// Endpoint 1: stock-price-change (1M/3M/6M directos)
-async function viaPriceChange(sym) {
-  const r = await fetchJson(`https://financialmodelingprep.com/api/v3/stock-price-change/${encodeURIComponent(sym)}?apikey=${FMP_KEY}`);
-  if (!r.ok) { _lastError = `precio-cambio: ${r.error}`; return null; }
-  const d = Array.isArray(r.body) ? r.body[0] : null;
-  if (!d) return null;
-  return { m1: num(d['1M']), m3: num(d['3M']), m6: num(d['6M']), ytd: num(d.ytd), y1: num(d['1Y']) };
-}
-
-// Endpoint 2 (fallback): histórico EOD -> calculo los retornos
+// API nueva "stable": histórico EOD (light) -> calculo los retornos.
 async function viaHistorical(sym) {
-  const r = await fetchJson(`https://financialmodelingprep.com/api/v3/historical-price-full/${encodeURIComponent(sym)}?serietype=line&timeseries=260&apikey=${FMP_KEY}`);
-  if (!r.ok) { _lastError = `historico: ${r.error}`; return null; }
-  const hist = r.body && Array.isArray(r.body.historical) ? r.body.historical : null;
-  if (!hist || !hist.length) return null;
-  const closes = hist.map(h => Number(h.close)).filter(Number.isFinite); // [0]=más reciente
+  const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&apikey=${FMP_KEY}`);
+  if (!r.ok) { _lastError = r.error; return null; }
+  let arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
+  if (!arr || !arr.length) return null;
+  arr = arr.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); // más reciente primero
+  const closes = arr.map(h => Number(h.price ?? h.close ?? h.adjClose)).filter(Number.isFinite);
+  if (closes.length < 2) return null;
   const ret = (n) => closes.length > n && closes[n] ? num(((closes[0] - closes[n]) / closes[n]) * 100) : null;
   return { m1: ret(21), m3: ret(63), m6: ret(126), ytd: null, y1: ret(252) };
 }
@@ -56,8 +49,7 @@ export async function getSignals(tickers) {
     if (c && Date.now() - c.ts < TTL) { out[t] = c.sig; return; }
     const sym = ALIAS[t] || t;
     try {
-      let sig = await viaPriceChange(sym);
-      if (!sig) sig = await viaHistorical(sym);
+      const sig = await viaHistorical(sym);
       if (sig) { _cache.set(t, { ts: Date.now(), sig }); out[t] = sig; }
     } catch (e) { _lastError = e.message; }
   }));

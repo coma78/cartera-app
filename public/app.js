@@ -16,6 +16,7 @@ let CURRENT_SEC = 'resumen';
 let DIST_MODE = 'ticker';
 let EVO_MODE = 'mercado';
 let LAST_CARTERA = { rows: [], view: 'lots' };
+let LAST_SUGGEST = null;
 const CHARTS = {};
 let HIDE_MONEY = true;          // por defecto los montos están ocultos
 const IDLE_MS = 5 * 60 * 1000;  // cierre de sesión por inactividad
@@ -472,8 +473,11 @@ function renderSugerencias() {
   const cur = document.getElementById('sg-cur');
   if (cur) cur.textContent = '(' + (CONFIG.currency || 'USD') + ')';
   const cont = document.getElementById('sg-tickers');
+  const existing = cont.querySelectorAll('.sg-tk').length;
   if (!CATALOG.length) cont.innerHTML = '<span class="muted-sm">Cargá tickers primero (sección Tickers).</span>';
-  else cont.innerHTML = CATALOG.map(c => `<label class="sg-chk"><input type="checkbox" class="sg-tk" value="${c.ticker}" checked> ${c.ticker}</label>`).join('');
+  else if (existing !== CATALOG.length) cont.innerHTML = CATALOG.map(c => `<label class="sg-chk"><input type="checkbox" class="sg-tk" value="${c.ticker}" checked> ${c.ticker}</label>`).join('');
+  // Repinta el último resultado (p. ej. al togglear el ojito de montos)
+  if (LAST_SUGGEST) renderSuggestResult(LAST_SUGGEST);
 }
 
 async function computeSuggest() {
@@ -500,6 +504,7 @@ async function computeSuggest() {
 }
 
 function renderSuggestResult(data) {
+  LAST_SUGGEST = data;
   const p = data.plan;
   const rows = p.rows.filter(r => r.cedears > 0);
   const expl = data.aiRationale || data.rationale;
