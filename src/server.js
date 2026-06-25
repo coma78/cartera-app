@@ -10,6 +10,7 @@ import {
   deleteAllHoldings, addHoldingsBulk,
   listWatchlist, addWatch, updateWatch, deleteWatch, deleteAllWatch, applyRatioChange,
   listReports, latestReport, deleteAllReports,
+  getSetting, setSetting,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
@@ -149,6 +150,15 @@ app.post('/api/report/run', wrap(async (req, res) => {
   const send = req.body?.send !== false; // por defecto envia
   res.json(await generateReport({ send }));
 }));
+// ---- Settings (toggle de envío de mail diario) ----
+app.get('/api/settings', wrap(async (_req, res) => {
+  res.json({ dailyEmail: (await getSetting('daily_email', 'true')) !== 'false' });
+}));
+app.post('/api/settings', wrap(async (req, res) => {
+  if (typeof req.body?.dailyEmail === 'boolean') await setSetting('daily_email', req.body.dailyEmail ? 'true' : 'false');
+  res.json({ dailyEmail: (await getSetting('daily_email', 'true')) !== 'false' });
+}));
+
 app.get('/api/reports', wrap(async (_req, res) => res.json(await listReports())));
 app.get('/api/reports/latest', wrap(async (_req, res) => {
   const r = await latestReport();
@@ -175,7 +185,9 @@ async function start() {
     cron.schedule(expr, async () => {
       console.log(`[cron] generando reporte diario ${new Date().toISOString()}`);
       try {
-        const r = await generateReport({ send: true });
+        // El snapshot se guarda siempre; el mail sólo si está activado.
+        const sendMail = (await getSetting('daily_email', 'true')) !== 'false';
+        const r = await generateReport({ send: sendMail });
         console.log(`[cron] reporte #${r.reportId} — mail: ${r.emailResult.sent ? 'enviado' : r.emailResult.reason}`);
       } catch (e) {
         console.error('[cron] error:', e.message);

@@ -48,6 +48,13 @@ export async function migrate() {
     );
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+
   // Migraciones idempotentes para bases ya creadas (deploys existentes).
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date DATE;`);
@@ -195,6 +202,19 @@ export async function saveReport({ summary, html, emailed }) {
 export async function latestReport() {
   const { rows } = await query('SELECT * FROM reports ORDER BY created_at DESC LIMIT 1');
   return rows[0] || null;
+}
+
+// ---------- Settings ----------
+export async function getSetting(key, def = null) {
+  const { rows } = await query('SELECT value FROM settings WHERE key = $1', [key]);
+  return rows[0] ? rows[0].value : def;
+}
+export async function setSetting(key, value) {
+  await query(
+    `INSERT INTO settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [key, String(value)]
+  );
 }
 
 export async function listReports(limit = 30) {

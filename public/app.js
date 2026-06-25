@@ -10,6 +10,7 @@ let HOLDINGS = [];
 let CATALOG = [];
 let WATCHLIVE = [];
 let REPORTS = [];
+let SETTINGS = { dailyEmail: true };
 let PAGE = 1;
 let CURRENT_SEC = 'resumen';
 let DIST_MODE = 'ticker';
@@ -115,10 +116,16 @@ async function loadDashboard() {
 async function loadReports() {
   REPORTS = await api('/reports').catch(() => []);
 }
+async function loadSettings() {
+  try { SETTINGS = await api('/settings'); } catch (e) { SETTINGS = { dailyEmail: true }; }
+  const chk = document.getElementById('chk-daily-email');
+  if (chk) chk.checked = !!SETTINGS.dailyEmail;
+}
 async function loadAll() {
   await refreshCatalog();
   await loadDashboard();
   await loadReports();
+  await loadSettings();
   renderSection(CURRENT_SEC);
 }
 
@@ -622,6 +629,12 @@ function bindEvents() {
   document.querySelectorAll('.nav-item').forEach(n => n.onclick = () => showSection(n.dataset.sec));
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('btn-eye').onclick = toggleMoney;
+  document.getElementById('chk-daily-email').addEventListener('change', async function () {
+    try {
+      SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ dailyEmail: this.checked }) });
+      toast(SETTINGS.dailyEmail ? 'Mail diario activado' : 'Mail diario desactivado (el snapshot se sigue guardando)');
+    } catch (e) { toast(e.message); this.checked = !this.checked; }
+  });
   ['f-view', 'f-type', 'f-ticker', 'f-year', 'f-from', 'f-to', 'f-pl', 'f-pagesize'].forEach(id => {
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; renderCartera(); });
   });

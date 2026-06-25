@@ -113,6 +113,8 @@ tr:last-child td { border-bottom: none; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1c1c1c; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; z-index: 60; }
+.toggle-row { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 6px 0 14px; flex-wrap: wrap; }
+.toggle-row input { width: auto; }
 .empty { color: var(--muted); font-size: 14px; padding: 12px 4px; }
 .disclaimer { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 8px 0 0; padding: 0 24px; max-width: 1040px; }
 
