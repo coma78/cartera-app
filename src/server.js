@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   migrate,
   listHoldings, addHolding, updateHolding, deleteHolding,
+  deleteAllHoldings, addHoldingsBulk,
   listWatchlist, addWatch, deleteWatch,
   listReports, latestReport,
 } from './db.js';
@@ -62,6 +63,14 @@ app.put('/api/holdings/:id', wrap(async (req, res) => {
 app.delete('/api/holdings/:id', wrap(async (req, res) => {
   await deleteHolding(Number(req.params.id));
   res.json({ ok: true });
+}));
+// Importacion masiva. Body: { items:[...], reset:true|false }
+app.post('/api/holdings/bulk', wrap(async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ error: 'lista vacia' });
+  if (req.body?.reset) await deleteAllHoldings();
+  const inserted = await addHoldingsBulk(items);
+  res.json({ inserted });
 }));
 
 // ---- Watchlist (ABM) ----

@@ -28,7 +28,10 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Tu cartera</h2>
-        <button class="btn" onclick="openHoldingForm()">+ Agregar tenencia</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="openImportForm()">Importar lista</button>
+          <button class="btn" onclick="openHoldingForm()">+ Agregar tenencia</button>
+        </div>
       </div>
       <div id="holdings-table"></div>
     </section>

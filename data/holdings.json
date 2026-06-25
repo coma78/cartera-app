@@ -1,0 +1,996 @@
+[
+  {
+    "purchase_date": "2024-08-13",
+    "ticker": "MSFT",
+    "buy_price": 410.75,
+    "quantity": 10,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2024-08-30",
+    "ticker": "JPM",
+    "buy_price": 224.78,
+    "quantity": 16,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2024-08-30",
+    "ticker": "QQQ",
+    "buy_price": 476.27,
+    "quantity": 35,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2024-09-13",
+    "ticker": "PFE",
+    "buy_price": 29.09,
+    "quantity": 31,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2024-09-13",
+    "ticker": "MSFT",
+    "buy_price": 428.86,
+    "quantity": 15,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2024-09-23",
+    "ticker": "MSFT",
+    "buy_price": 433.87,
+    "quantity": 10,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2024-09-23",
+    "ticker": "GOOGL",
+    "buy_price": 162.6,
+    "quantity": 72,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2024-09-13",
+    "ticker": "PFE",
+    "buy_price": 29.17,
+    "quantity": 5,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2024-10-31",
+    "ticker": "JPM",
+    "buy_price": 221.92,
+    "quantity": 6,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2024-11-21",
+    "ticker": "GOOGL",
+    "buy_price": 164.4,
+    "quantity": 63,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2024-12-06",
+    "ticker": "QQQ",
+    "buy_price": 526.24,
+    "quantity": 108,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2024-12-06",
+    "ticker": "SPY",
+    "buy_price": 607.65,
+    "quantity": 95,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2024-12-09",
+    "ticker": "BRKB",
+    "buy_price": 463.87,
+    "quantity": 20,
+    "ratio": 22
+  },
+  {
+    "purchase_date": "2024-12-20",
+    "ticker": "QQQ",
+    "buy_price": 517.75,
+    "quantity": 3,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2024-09-25",
+    "ticker": "PFE",
+    "buy_price": 26.79,
+    "quantity": 12,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2024-12-27",
+    "ticker": "SPY",
+    "buy_price": 588.04,
+    "quantity": 4,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-01-03",
+    "ticker": "EWZ",
+    "buy_price": 22.52,
+    "quantity": 18,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-01-24",
+    "ticker": "MSFT",
+    "buy_price": 446.25,
+    "quantity": 10,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2025-02-27",
+    "ticker": "JPM",
+    "buy_price": 261.89,
+    "quantity": 15,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-03-07",
+    "ticker": "JPM",
+    "buy_price": 244.4,
+    "quantity": 12,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-03-12",
+    "ticker": "JPM",
+    "buy_price": 230.69,
+    "quantity": 20,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-03-12",
+    "ticker": "MSFT",
+    "buy_price": 383.89,
+    "quantity": 14,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2025-03-14",
+    "ticker": "JPM",
+    "buy_price": 233.01,
+    "quantity": 12,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-03-28",
+    "ticker": "NU",
+    "buy_price": 10.35,
+    "quantity": 60,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-03-28",
+    "ticker": "GOOGL",
+    "buy_price": 154.33,
+    "quantity": 60,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2025-04-01",
+    "ticker": "BRKB",
+    "buy_price": 518,
+    "quantity": 99,
+    "ratio": 22
+  },
+  {
+    "purchase_date": "2025-04-03",
+    "ticker": "JPM",
+    "buy_price": 232.96,
+    "quantity": 10,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-04-04",
+    "ticker": "NU",
+    "buy_price": 9.37,
+    "quantity": 30,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-06-30",
+    "ticker": "NU",
+    "buy_price": 13.25,
+    "quantity": 15,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-08-01",
+    "ticker": "JPM",
+    "buy_price": 289.37,
+    "quantity": 11,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-08-18",
+    "ticker": "EWZ",
+    "buy_price": 28.31,
+    "quantity": 15,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-08-26",
+    "ticker": "EEM",
+    "buy_price": 50.27,
+    "quantity": 34,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2025-08-26",
+    "ticker": "EWZ",
+    "buy_price": 28.5,
+    "quantity": 124,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-08-27",
+    "ticker": "FXI",
+    "buy_price": 38.1,
+    "quantity": 15,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2025-09-12",
+    "ticker": "JPM",
+    "buy_price": 305.25,
+    "quantity": 26,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-09-22",
+    "ticker": "EEM",
+    "buy_price": 53.19,
+    "quantity": 89,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2025-09-22",
+    "ticker": "FXI",
+    "buy_price": 40.62,
+    "quantity": 47,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2025-09-23",
+    "ticker": "EEM",
+    "buy_price": 53.33,
+    "quantity": 152,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2025-09-24",
+    "ticker": "EWZ",
+    "buy_price": 31.18,
+    "quantity": 18,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-09-29",
+    "ticker": "MSFT",
+    "buy_price": 513.3,
+    "quantity": 57,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2025-10-02",
+    "ticker": "PFE",
+    "buy_price": 26.9,
+    "quantity": 20,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2025-10-03",
+    "ticker": "MELI",
+    "buy_price": 2192.46,
+    "quantity": 10,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-10-06",
+    "ticker": "PFE",
+    "buy_price": 27.03,
+    "quantity": 20,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2025-10-06",
+    "ticker": "XLV",
+    "buy_price": 144.12,
+    "quantity": 6,
+    "ratio": 29
+  },
+  {
+    "purchase_date": "2025-10-08",
+    "ticker": "MELI",
+    "buy_price": 2141.95,
+    "quantity": 20,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-10-08",
+    "ticker": "PFE",
+    "buy_price": 26.17,
+    "quantity": 30,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2025-10-13",
+    "ticker": "PFE",
+    "buy_price": 24.66,
+    "quantity": 36,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2025-10-13",
+    "ticker": "JPM",
+    "buy_price": 308.17,
+    "quantity": 11,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-10-20",
+    "ticker": "VEA",
+    "buy_price": 61.1,
+    "quantity": 30,
+    "ratio": 10
+  },
+  {
+    "purchase_date": "2025-10-20",
+    "ticker": "PFE",
+    "buy_price": 24.67,
+    "quantity": 24,
+    "ratio": 4
+  },
+  {
+    "purchase_date": "2025-10-30",
+    "ticker": "JPM",
+    "buy_price": 310.54,
+    "quantity": 10,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-10-31",
+    "ticker": "JPM",
+    "buy_price": 311.4,
+    "quantity": 10,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-10-31",
+    "ticker": "MELI",
+    "buy_price": 2308.13,
+    "quantity": 10,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-10-31",
+    "ticker": "JPM",
+    "buy_price": 311.5,
+    "quantity": 8,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-10-31",
+    "ticker": "QQQ",
+    "buy_price": 628.96,
+    "quantity": 10,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-11-03",
+    "ticker": "SPY",
+    "buy_price": 682.06,
+    "quantity": 100,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-11-03",
+    "ticker": "GOOGL",
+    "buy_price": 281.21,
+    "quantity": 263,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2025-11-03",
+    "ticker": "MELI",
+    "buy_price": 2371.39,
+    "quantity": 30,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-11-03",
+    "ticker": "QQQ",
+    "buy_price": 633.25,
+    "quantity": 176,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-11-04",
+    "ticker": "SPY",
+    "buy_price": 678.49,
+    "quantity": 20,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-11-04",
+    "ticker": "MELI",
+    "buy_price": 2343.4,
+    "quantity": 34,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-11-05",
+    "ticker": "GOOGL",
+    "buy_price": 283.24,
+    "quantity": 8,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2025-11-12",
+    "ticker": "QQQ",
+    "buy_price": 620.57,
+    "quantity": 10,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-11-12",
+    "ticker": "SPY",
+    "buy_price": 683.02,
+    "quantity": 6,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-11-12",
+    "ticker": "GOOGL",
+    "buy_price": 287.39,
+    "quantity": 12,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2025-11-14",
+    "ticker": "NU",
+    "buy_price": 16.07,
+    "quantity": 142,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-11-21",
+    "ticker": "MELI",
+    "buy_price": 1924.85,
+    "quantity": 3,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-12-03",
+    "ticker": "SPY",
+    "buy_price": 681.53,
+    "quantity": 13,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-12-03",
+    "ticker": "QQQ",
+    "buy_price": 622.76,
+    "quantity": 15,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-12-05",
+    "ticker": "NU",
+    "buy_price": 17.6,
+    "quantity": 30,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-12-05",
+    "ticker": "MELI",
+    "buy_price": 2152.1,
+    "quantity": 8,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-12-05",
+    "ticker": "JPM",
+    "buy_price": 317.02,
+    "quantity": 20,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-12-09",
+    "ticker": "JPM",
+    "buy_price": 302.3,
+    "quantity": 18,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-12-10",
+    "ticker": "JPM",
+    "buy_price": 299.38,
+    "quantity": 16,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-12-11",
+    "ticker": "NU",
+    "buy_price": 16.96,
+    "quantity": 25,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2025-12-11",
+    "ticker": "MELI",
+    "buy_price": 2011.32,
+    "quantity": 15,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2025-12-12",
+    "ticker": "QQQ",
+    "buy_price": 612.22,
+    "quantity": 6,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-12-12",
+    "ticker": "SPY",
+    "buy_price": 683.57,
+    "quantity": 5,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2025-12-12",
+    "ticker": "JPM",
+    "buy_price": 317.26,
+    "quantity": 8,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2025-12-16",
+    "ticker": "META",
+    "buy_price": 652.81,
+    "quantity": 9,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-01-02",
+    "ticker": "META",
+    "buy_price": 650.41,
+    "quantity": 5,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-01-06",
+    "ticker": "JPM",
+    "buy_price": 333.94,
+    "quantity": 16,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2026-01-06",
+    "ticker": "GOOGL",
+    "buy_price": 313.54,
+    "quantity": 185,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2026-01-07",
+    "ticker": "JPM",
+    "buy_price": 325,
+    "quantity": 11,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2026-01-15",
+    "ticker": "JPM",
+    "buy_price": 311.39,
+    "quantity": 15,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2026-01-15",
+    "ticker": "NU",
+    "buy_price": 16.69,
+    "quantity": 48,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-01-20",
+    "ticker": "JPM",
+    "buy_price": 303.31,
+    "quantity": 8,
+    "ratio": 15
+  },
+  {
+    "purchase_date": "2026-01-30",
+    "ticker": "NU",
+    "buy_price": 17.85,
+    "quantity": 25,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "NU",
+    "buy_price": 17.34,
+    "quantity": 55,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "EEM",
+    "buy_price": 59.43,
+    "quantity": 40,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "MELI",
+    "buy_price": 2044.15,
+    "quantity": 27,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "META",
+    "buy_price": 677.1,
+    "quantity": 16,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "XLV",
+    "buy_price": 156.11,
+    "quantity": 88,
+    "ratio": 29
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "VEA",
+    "buy_price": 66.68,
+    "quantity": 71,
+    "ratio": 10
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "XLV",
+    "buy_price": 155.87,
+    "quantity": 88,
+    "ratio": 29
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "GOOGL",
+    "buy_price": 330.36,
+    "quantity": 83,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2026-02-04",
+    "ticker": "EWZ",
+    "buy_price": 36.87,
+    "quantity": 25,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "GOOGL",
+    "buy_price": 323.3,
+    "quantity": 85,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "NU",
+    "buy_price": 17.04,
+    "quantity": 56,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "XLV",
+    "buy_price": 155.77,
+    "quantity": 132,
+    "ratio": 29
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "VEA",
+    "buy_price": 66.41,
+    "quantity": 25,
+    "ratio": 10
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "MELI",
+    "buy_price": 2061.94,
+    "quantity": 30,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "EEM",
+    "buy_price": 58.6,
+    "quantity": 40,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2026-02-05",
+    "ticker": "EWZ",
+    "buy_price": 37.1,
+    "quantity": 25,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-06",
+    "ticker": "SPXL",
+    "buy_price": 219.21,
+    "quantity": 41,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-06",
+    "ticker": "GOOGL",
+    "buy_price": 324.12,
+    "quantity": 85,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2026-02-06",
+    "ticker": "META",
+    "buy_price": 653.99,
+    "quantity": 17,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-06",
+    "ticker": "SPXL",
+    "buy_price": 220.06,
+    "quantity": 54,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-06",
+    "ticker": "EWZ",
+    "buy_price": 37.12,
+    "quantity": 2,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "VEA",
+    "buy_price": 68.54,
+    "quantity": 8,
+    "ratio": 10
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "META",
+    "buy_price": 669.43,
+    "quantity": 21,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "NU",
+    "buy_price": 17.67,
+    "quantity": 111,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "GOOGL",
+    "buy_price": 315.97,
+    "quantity": 21,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "XLV",
+    "buy_price": 155.39,
+    "quantity": 11,
+    "ratio": 29
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "MELI",
+    "buy_price": 1982.12,
+    "quantity": 5,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "VEA",
+    "buy_price": 68.63,
+    "quantity": 78,
+    "ratio": 10
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "TQQQ",
+    "buy_price": 50.12,
+    "quantity": 312,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-11",
+    "ticker": "EWZ",
+    "buy_price": 38.83,
+    "quantity": 50,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-12",
+    "ticker": "SPXL",
+    "buy_price": 220.07,
+    "quantity": 109,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-12",
+    "ticker": "TQQQ",
+    "buy_price": 49.21,
+    "quantity": 488,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-02-13",
+    "ticker": "NU",
+    "buy_price": 16.64,
+    "quantity": 44,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-19",
+    "ticker": "AVGO",
+    "buy_price": 334.25,
+    "quantity": 90,
+    "ratio": 39
+  },
+  {
+    "purchase_date": "2026-02-19",
+    "ticker": "GOOGL",
+    "buy_price": 303.24,
+    "quantity": 155,
+    "ratio": 58
+  },
+  {
+    "purchase_date": "2026-02-25",
+    "ticker": "EEM",
+    "buy_price": 63.08,
+    "quantity": 384,
+    "ratio": 5
+  },
+  {
+    "purchase_date": "2026-02-25",
+    "ticker": "EWZ",
+    "buy_price": 39.28,
+    "quantity": 249,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-02-26",
+    "ticker": "NU",
+    "buy_price": 15.32,
+    "quantity": 61,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-03-10",
+    "ticker": "NU",
+    "buy_price": 14.96,
+    "quantity": 6,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-03-12",
+    "ticker": "MELI",
+    "buy_price": 1669.77,
+    "quantity": 150,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2026-03-12",
+    "ticker": "SPXL",
+    "buy_price": 204.34,
+    "quantity": 120,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-04-06",
+    "ticker": "SPXL",
+    "buy_price": 191.59,
+    "quantity": 7,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-03-27",
+    "ticker": "SPY",
+    "buy_price": 713.57,
+    "quantity": 73,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2026-04-28",
+    "ticker": "QQQ",
+    "buy_price": 657.32,
+    "quantity": 10,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2026-04-29",
+    "ticker": "NU",
+    "buy_price": 14.05,
+    "quantity": 103,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-04-29",
+    "ticker": "MSFT",
+    "buy_price": 424.46,
+    "quantity": 46,
+    "ratio": 30
+  },
+  {
+    "purchase_date": "2026-04-29",
+    "ticker": "META",
+    "buy_price": 669.12,
+    "quantity": 23,
+    "ratio": 25
+  },
+  {
+    "purchase_date": "2026-05-04",
+    "ticker": "NU",
+    "buy_price": 14.45,
+    "quantity": 14,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-05-12",
+    "ticker": "MELI",
+    "buy_price": 1578.78,
+    "quantity": 79,
+    "ratio": 120
+  },
+  {
+    "purchase_date": "2026-05-13",
+    "ticker": "QQQ",
+    "buy_price": 714.71,
+    "quantity": 5,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2026-05-15",
+    "ticker": "NU",
+    "buy_price": 12,
+    "quantity": 321,
+    "ratio": 2
+  },
+  {
+    "purchase_date": "2026-05-27",
+    "ticker": "SPY",
+    "buy_price": 750.88,
+    "quantity": 35,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2026-06-09",
+    "ticker": "SPY",
+    "buy_price": 732.84,
+    "quantity": 14,
+    "ratio": 20
+  },
+  {
+    "purchase_date": "2026-06-12",
+    "ticker": "QQQ",
+    "buy_price": 723.1,
+    "quantity": 10,
+    "ratio": 20
+  }
+]

@@ -70,7 +70,7 @@ function renderHoldings(rows) {
       <th class="num"></th>
     </tr></thead><tbody>${rows.map(h => `
       <tr>
-        <td><b>${h.ticker}</b> <span class="muted-sm">CEDEAR · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
+        <td><b>${h.ticker}</b> <span class="muted-sm">${h.quantity} CEDEARs · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
         <td class="num">${money(h.buy_price)}</td>
         <td class="num">${money(h.price)}</td>
         <td class="num hide-sm">${fmtDate(h.purchase_date)}</td>
@@ -123,8 +123,8 @@ function openHoldingForm(h = null) {
   const dateVal = h?.purchase_date ? String(h.purchase_date).slice(0, 10) : '';
   document.getElementById('modal-body').innerHTML =
     field('Ticker (ej. AVGO)', 'ticker', h?.ticker || '', 'text', 'AVGO') +
-    field('Precio de compra (por CEDEAR)', 'buy', h?.buy_price ?? '', 'number', '12.50') +
-    field('Cantidad de CEDEARs', 'qty', h?.quantity ?? '', 'number', '39') +
+    field('Precio de compra — de la acción US (USD)', 'buy', h?.buy_price ?? '', 'number', '334.25') +
+    field('Nominales (cantidad de CEDEARs)', 'qty', h?.quantity ?? '', 'number', '90') +
     field('Ratio (CEDEARs por acción)', 'ratio', h?.ratio ?? '', 'number', '39') +
     field('Fecha de compra', 'pdate', dateVal, 'date') +
     field('Notas (opcional)', 'notes', h?.notes || '');
@@ -171,6 +171,63 @@ function openWatchForm() {
     if (!body.ticker) return toast('El ticker es obligatorio');
     try { await api('/watchlist', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Agregado'); loadDashboard(); }
     catch (e) { toast(e.message); }
+  };
+  modal.classList.remove('hidden');
+}
+
+// ---------- Importación masiva ----------
+function normNum(s) { return parseFloat(String(s).replace(/\./g, '').replace(',', '.')); }
+function normDate(d) {
+  const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if (!m) return null;
+  let [, dd, mm, yy] = m; if (yy.length === 2) yy = String(2000 + parseInt(yy, 10));
+  return `${yy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+}
+function parseHoldingsText(text) {
+  const items = [], errors = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim(); if (!line) continue;
+    const m = line.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})\s+([A-Za-z.]{1,6})\s+\$?\s*([\d.,]+)\s+(\d+)/);
+    if (!m) { errors.push(line); continue; }
+    const [, date, tk, val, qty] = m;
+    const ticker = tk.toUpperCase();
+    items.push({
+      purchase_date: normDate(date),
+      ticker,
+      buy_price: normNum(val),
+      quantity: parseInt(qty, 10),
+      ratio: RATIOS[ticker] || null,
+    });
+  }
+  return { items, errors };
+}
+
+function openImportForm() {
+  document.getElementById('modal-title').textContent = 'Importar lista de compras';
+  document.getElementById('modal-body').innerHTML = `
+    <p style="font-size:12px;color:#7a8190;margin:0 0 8px">
+      Pegá tus filas con columnas: <b>fecha · ticker · precio acción · nominales</b>
+      (ej. <code>13/8/24 MSFT $ 410,75 10</code>). El ratio se completa solo.
+    </p>
+    <textarea id="f-import" rows="9" placeholder="13/8/24\tMSFT\t$ 410,75\t10"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#1c1c1c">
+      <input type="checkbox" id="f-reset" style="width:auto"> Reemplazar lo que ya tengo cargado (borrar antes)
+    </label>
+    <div id="import-preview" style="font-size:12px;color:#7a8190;margin-top:8px"></div>`;
+  const ta = document.getElementById('f-import');
+  const prev = document.getElementById('import-preview');
+  ta.addEventListener('input', () => {
+    const { items, errors } = parseHoldingsText(ta.value);
+    prev.textContent = ta.value.trim() ? `Detectadas ${items.length} filas` + (errors.length ? ` · ${errors.length} no reconocidas` : '') : '';
+  });
+  document.getElementById('modal-save').onclick = async () => {
+    const { items, errors } = parseHoldingsText(ta.value);
+    if (!items.length) return toast('No se detectaron filas válidas');
+    if (errors.length && !confirm(`${errors.length} líneas no se reconocieron y se omitirán. ¿Importar las ${items.length} válidas?`)) return;
+    const reset = document.getElementById('f-reset').checked;
+    try {
+      const r = await api('/holdings/bulk', { method: 'POST', body: JSON.stringify({ items, reset }) });
+      closeModal(); toast(`Importadas ${r.inserted} tenencias`); loadDashboard();
+    } catch (e) { toast(e.message); }
   };
   modal.classList.remove('hidden');
 }

@@ -12,13 +12,22 @@ App en la nube para seguir tu cartera de inversiones. Tiene:
 
 ## CEDEARs y ratios
 
-La app está pensada para **CEDEARs**, no para la acción que cotiza en EEUU. Cada CEDEAR representa una fracción de la acción según un **ratio** (ej. AVGO = 39: hacen falta 39 CEDEARs para 1 acción).
+La app está pensada para **CEDEARs**. Cada CEDEAR representa una fracción de la acción que cotiza en EEUU según un **ratio** (ej. AVGO = 39: 39 CEDEARs equivalen a 1 acción).
 
-- El precio que se trae es el de la **acción en EEUU**, y la app calcula el **precio por CEDEAR = precio de la acción / ratio**.
-- Tu **precio de compra**, **cantidad** y el **P&L** se miden por CEDEAR, en la misma moneda (USD); pensalo en dólar CCL.
-- Al cargar una tenencia, el **ratio se autocompleta** con una tabla de referencia (`src/ratios.js`) y lo podés editar. Los ratios cambian con el tiempo, así que revisalos.
+Convención de carga (igual que una planilla de compras):
+
+- **Precio de compra** = precio de la **acción en EEUU** al momento de comprar (USD/CCL), tal como figura en tu planilla.
+- **Nominales** = cantidad de **CEDEARs** que compraste.
+- **Ratio** = CEDEARs por acción (se **autocompleta** con `src/ratios.js`, editable).
+- **Rendimiento %** = (precio actual de la acción − tu precio de compra) / compra.
+- **Valor de la posición** = (nominales ÷ ratio) × precio actual de la acción.
 - También cargás la **fecha de compra**.
 - Tickers cuyo símbolo difiere del de EEUU se mapean solos (ej. `BRKB` → `BRK.B`).
+
+### Cargar tus compras (dos formas)
+
+1. **Desde la web (recomendado):** botón **Importar lista** → pegás las filas `fecha · ticker · precio acción · nominales` (ej. `13/8/24  MSFT  $ 410,75  10`). Reconoce el formato con `$`, miles con `.` y decimales con `,`. Tildá *Reemplazar* si querés re-importar desde cero.
+2. **Desde la terminal:** las compras vienen precargadas en `data/holdings.json`. Con `DATABASE_URL` apuntando a tu base: `npm run seed` (o `npm run seed -- --reset` para borrar antes).
 
 > Ratios precargados: AVGO 39, BRKB 22, EEM 5, EWZ 2, FXI 5, GOOGL 58, JPM 15, MELI 120, META 25, MSFT 30, NU 2, PFE 4, QQQ 20, SPY 20, SPXL 25, TQQQ 25, VEA 10, XLV 29.
 

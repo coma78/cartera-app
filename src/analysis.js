@@ -21,22 +21,27 @@ function observations({ plPct, changePct }) {
   return obs;
 }
 
-// Analiza una tenencia (holding) con su quote ya resuelto.
-// El quote es de la ACCION subyacente en EEUU; el precio por CEDEAR
-// es ese valor dividido por el ratio (ej. AVGO/39).
+// Analiza una tenencia con su quote ya resuelto.
+// Convencion (coincide con la planilla del usuario):
+//   buy_price = precio de la ACCION subyacente al comprar (USD)
+//   quantity  = nominales = cantidad de CEDEARs
+//   ratio     = CEDEARs por accion
+// El precio actual que se muestra es el de la accion (para comparar manzanas
+// con manzanas). El valor de la posicion usa (nominales / ratio) acciones.
 export function analyzeHolding(holding, quote) {
-  const buy = Number(holding.buy_price);
-  const qty = Number(holding.quantity) || 0;
+  const buy = Number(holding.buy_price);          // precio accion al comprar
+  const qty = Number(holding.quantity) || 0;      // nominales (CEDEARs)
   const ratio = Number(holding.ratio) > 0 ? Number(holding.ratio) : 1;
 
-  const underlyingPrice = quote.price;      // precio de la accion en EEUU
-  const price = pct(underlyingPrice / ratio); // precio equivalente de 1 CEDEAR
+  const price = quote.price;                       // precio actual de la accion
+  const shares = qty / ratio;                      // acciones equivalentes
+  const cedearPrice = pct(price / ratio);          // precio de 1 CEDEAR (info)
 
   const plPctRaw = buy > 0 ? ((price - buy) / buy) * 100 : null;
   const plPct = plPctRaw === null ? null : pct(plPctRaw);
-  const positionValue = qty > 0 ? pct(qty * price) : null;
-  const positionCost = qty > 0 ? pct(qty * buy) : null;
-  const plAbs = qty > 0 ? pct(qty * (price - buy)) : (buy > 0 ? pct(price - buy) : null);
+  const positionValue = qty > 0 ? pct(shares * price) : null;
+  const positionCost = qty > 0 ? pct(shares * buy) : null;
+  const plAbs = qty > 0 ? pct(shares * (price - buy)) : (buy > 0 ? pct(price - buy) : null);
 
   return {
     id: holding.id,
@@ -45,10 +50,10 @@ export function analyzeHolding(holding, quote) {
     quantity: qty,
     ratio,
     purchase_date: holding.purchase_date || null,
-    price,                 // por CEDEAR
-    underlyingPrice,       // accion subyacente
+    price,                 // accion subyacente (actual)
+    cedearPrice,           // precio por CEDEAR (info)
     changePct: quote.changePct,
-    change: ratio !== 1 ? pct(quote.change / ratio) : quote.change,
+    change: quote.change,
     plPct,
     plAbs,
     positionValue,
@@ -65,10 +70,10 @@ export function analyzeWatch(watch, quote, news = []) {
     id: watch.id,
     ticker: watch.ticker,
     ratio,
-    price: pct(quote.price / ratio), // por CEDEAR
-    underlyingPrice: quote.price,
+    price: quote.price,                  // accion subyacente
+    cedearPrice: pct(quote.price / ratio),
     changePct: quote.changePct,
-    change: ratio !== 1 ? pct(quote.change / ratio) : quote.change,
+    change: quote.change,
     notes: watch.notes || '',
     news,
     observations: observations({ plPct: null, changePct: quote.changePct }),

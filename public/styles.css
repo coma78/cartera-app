@@ -66,6 +66,8 @@ tr:last-child td { border-bottom: none; }
 .modal-box h3 { margin: 0 0 14px; font-size: 17px; }
 .modal-box label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
 .modal-box input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.modal-box textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-family: ui-monospace, monospace; resize: vertical; }
+.modal-box code { background: #f0f2f5; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1c1c1c; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; z-index: 60; }

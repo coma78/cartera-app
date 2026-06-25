@@ -85,7 +85,7 @@ function renderHtml({ summary, holdingResults, watchResults, errors, generatedAt
       (h) => `
     <tr>
       <td style="padding:8px;border-bottom:1px solid #eee"><b>${h.ticker}</b>
-        <div style="color:#999;font-size:11px">CEDEAR · ratio ${h.ratio}${h.purchase_date ? ' · comprado ' + new Date(h.purchase_date).toLocaleDateString('es-AR') : ''}</div>
+        <div style="color:#999;font-size:11px">${h.quantity} CEDEARs · ratio ${h.ratio}${h.purchase_date ? ' · ' + new Date(h.purchase_date).toLocaleDateString('es-AR') : ''}</div>
       </td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmtMoney(h.buy_price)}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmtMoney(h.price)}</td>

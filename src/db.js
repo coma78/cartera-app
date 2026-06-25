@@ -102,6 +102,21 @@ export async function deleteHolding(id) {
   await query('DELETE FROM holdings WHERE id = $1', [id]);
 }
 
+export async function deleteAllHoldings() {
+  await query('DELETE FROM holdings');
+}
+
+// Inserta varias tenencias de una. Devuelve cuantas se insertaron.
+export async function addHoldingsBulk(items = []) {
+  let n = 0;
+  for (const it of items) {
+    if (!it || !it.ticker || it.buy_price == null) continue;
+    await addHolding(it);
+    n++;
+  }
+  return n;
+}
+
 // ---------- Watchlist ----------
 export async function listWatchlist() {
   const { rows } = await query('SELECT * FROM watchlist ORDER BY ticker ASC');
