@@ -17,7 +17,7 @@ import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
-import { aiEnabled, aiRationale } from './ai.js';
+import { aiEnabled, aiRationale, aiScores as aiScoresFn } from './ai.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -163,10 +163,25 @@ app.post('/api/suggest', wrap(async (req, res) => {
   if (Array.isArray(include) && include.length) items = items.filter(i => include.includes(i.ticker));
   if (Array.isArray(exclude) && exclude.length) items = items.filter(i => !exclude.includes(i.ticker));
 
-  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy, maxPerTicker, maxPerType, maxTickers } });
+  // Estrategia con IA: Claude puntúa los tickers y el motor usa esos puntajes.
+  let strat = strategy;
+  let aiScores = null, aiAnalysis = null, notice = null;
+  if (strategy === 'ai') {
+    if (!aiEnabled()) {
+      strat = 'rebalance';
+      notice = 'La estrategia con IA necesita ANTHROPIC_API_KEY. Se usó rebalanceo.';
+    } else {
+      const sc = await aiScoresFn(items, { risk, note });
+      if (sc && sc.scores) { aiScores = sc.scores; aiAnalysis = sc.rationale; }
+      else { strat = 'rebalance'; notice = 'No se pudo obtener el análisis de IA. Se usó rebalanceo.'; }
+    }
+  }
+
+  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy: strat, maxPerTicker, maxPerType, maxTickers, aiScores } });
   const rationale = templateRationale(plan);
-  const ai = await aiRationale(plan, note);
-  res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled() });
+  // En estrategia IA el "comentario" es el análisis; en las demás, una explicación del plan.
+  const ai = aiAnalysis || (strat !== 'ai' ? await aiRationale(plan, note) : null);
+  res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled(), notice });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----

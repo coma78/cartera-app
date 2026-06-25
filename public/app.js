@@ -504,7 +504,9 @@ function renderSuggestResult(data) {
   const rows = p.rows.filter(r => r.cedears > 0);
   const expl = data.aiRationale || data.rationale;
   const explTitle = data.aiRationale ? 'Comentario del modelo (IA)' : 'Resumen';
+  const noticeHtml = data.notice ? `<div class="notice">⚠️ ${data.notice}</div>` : '';
   document.getElementById('sg-result').innerHTML = `
+    ${noticeHtml}
     <div class="totals-strip">
       <span>A invertir: <b>${money(p.amount)}</b></span>
       <span>Distribuido: <b>${money(p.invested)}</b></span>
@@ -512,11 +514,12 @@ function renderSuggestResult(data) {
       <span>Cartera resultante: <b>${money(p.resultingTotal)}</b></span>
     </div>
     ${rows.length ? `<table><thead><tr>
-      <th>Ticker</th><th class="num">Comprar</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
+      <th>Ticker</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr>
         <td><b>${r.ticker}</b> <span class="muted-sm">${r.type}</span></td>
         <td class="num"><b>${r.cedears}</b></td>
+        <td class="num"><b>${r.pctOfNew}%</b></td>
         <td class="num hide-sm">${money(r.cedearPrice)}</td>
         <td class="num hide-sm">${money(r.buyMoney)}</td>
         <td class="num"><span class="muted-sm">${r.currentWeight}% → ${r.targetWeight}% →</span> <b>${r.resultingWeight}%</b></td>

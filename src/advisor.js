@@ -77,9 +77,15 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
   const capT = (Number(prefs.maxPerTicker) > 0 ? Number(prefs.maxPerTicker) : (risk === 'conservador' ? 15 : risk === 'agresivo' ? 40 : 25)) / 100;
   const capType = (Number(prefs.maxPerType) > 0 ? Number(prefs.maxPerType) : (risk === 'conservador' ? 70 : 100)) / 100;
 
-  // Peso de preferencia por ticker (riesgo × estrategia)
+  // Peso de preferencia por ticker (riesgo × estrategia).
+  // Si la estrategia es 'ai', la base es el puntaje del modelo (0-100).
   const pwAll = {};
-  for (const i of elig) pwAll[i.ticker] = riskFactor(i.type, i.ticker, risk) * strategyWeight(i.plPct, strategy);
+  for (const i of elig) {
+    const base = (strategy === 'ai' && prefs.aiScores)
+      ? Math.max(0.0001, Number(prefs.aiScores[i.ticker]) || 0)
+      : strategyWeight(i.plPct, strategy);
+    pwAll[i.ticker] = riskFactor(i.type, i.ticker, risk) * base;
+  }
 
   // Límite de cantidad de tickers: nos quedamos con los más alineados
   let eligUse = elig;
@@ -144,7 +150,10 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
     });
   }
   const resTotal = V + used;
-  for (const row of rows) row.resultingWeight = resTotal > 0 ? r2((row.resultingValue / resTotal) * 100) : 0;
+  for (const row of rows) {
+    row.resultingWeight = resTotal > 0 ? r2((row.resultingValue / resTotal) * 100) : 0;
+    row.pctOfNew = used > 0 ? r2((row.buyMoney / used) * 100) : 0; // % del aporte nuevo
+  }
   rows.sort((a, b) => b.buyMoney - a.buyMoney);
 
   return {
@@ -161,7 +170,7 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
 // Explicación automática (sin IA) — clara y honesta.
 export function templateRationale(plan) {
   const tops = plan.rows.filter(r => r.cedears > 0).slice(0, 3).map(r => `${r.cedears} CEDEARs de ${r.ticker}`);
-  const estrat = { rebalance: 'rebalancear hacia un peso parejo', equal: 'igualar pesos', losers: 'reforzar las posiciones que más cayeron', winners: 'reforzar las que mejor vienen' }[plan.prefs.strategy] || plan.prefs.strategy;
+  const estrat = { rebalance: 'rebalancear hacia un peso parejo', equal: 'igualar pesos', losers: 'reforzar las posiciones que más cayeron', winners: 'reforzar las que mejor vienen', ai: 'maximizar según el análisis del modelo' }[plan.prefs.strategy] || plan.prefs.strategy;
   return `Con perfil ${plan.prefs.risk} y estrategia de ${estrat}, ` +
     `se distribuyen ${plan.invested} de los ${plan.amount} ingresados (sobran ${plan.leftover} por redondeo a CEDEARs enteros), ` +
     `con un tope de ${plan.prefs.maxPerTicker}% por ticker. Principales aportes: ${tops.join(', ') || 'ninguno'}. ` +
