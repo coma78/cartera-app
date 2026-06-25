@@ -1,0 +1,21 @@
+{
+  "name": "cartera-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dashboard de cartera de inversiones con analisis y reporte diario por mail",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "report:now": "node src/runReport.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.12.0"
+  }
+}

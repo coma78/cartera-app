@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mi Cartera</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>📈 Mi Cartera</h1>
+    <div class="header-actions">
+      <span id="status-pill" class="pill">cargando…</span>
+      <button id="btn-run" class="btn primary">Generar reporte ahora</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Resumen -->
+    <section class="cards" id="summary-cards">
+      <div class="card"><div class="card-label">Valor total</div><div class="card-value" id="s-value">—</div></div>
+      <div class="card"><div class="card-label">Resultado</div><div class="card-value" id="s-pl">—</div></div>
+      <div class="card"><div class="card-label">Rendimiento</div><div class="card-value" id="s-plpct">—</div></div>
+      <div class="card"><div class="card-label">Posiciones</div><div class="card-value" id="s-count">—</div></div>
+    </section>
+
+    <!-- Cartera -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Tu cartera</h2>
+        <button class="btn" onclick="openHoldingForm()">+ Agregar tenencia</button>
+      </div>
+      <div id="holdings-table"></div>
+    </section>
+
+    <!-- Watchlist -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Tickers de interés</h2>
+        <button class="btn" onclick="openWatchForm()">+ Agregar a seguimiento</button>
+      </div>
+      <div id="watch-table"></div>
+    </section>
+
+    <!-- Reportes -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Reportes diarios</h2>
+        <a class="btn" href="/api/reports/latest" target="_blank" id="link-latest">Ver último</a>
+      </div>
+      <div id="reports-list"></div>
+    </section>
+
+    <p class="disclaimer">
+      Información para tu decisión, no asesoramiento financiero. Las observaciones son objetivas
+      (variaciones y rendimiento vs. tu precio de compra) y no constituyen recomendación de compra o venta.
+    </p>
+  </main>
+
+  <!-- Modal genérico -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" id="modal-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
