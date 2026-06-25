@@ -1,14 +1,20 @@
 // ---------- Estado / helpers ----------
 const TOKEN_KEY = 'cartera_token';
+const SEC_KEY = 'cartera_sec';
 let CONFIG = {};
 let RATIOS = {};
 const ETFS = new Set(['SPY', 'QQQ', 'EEM', 'EWZ', 'FXI', 'VEA', 'XLV', 'SPXL', 'TQQQ', 'DIA', 'IWM', 'EFA', 'ARKK', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV']);
 const tType = (t) => ETFS.has((t || '').toUpperCase()) ? 'ETF' : 'Acción';
 
-let HOLDINGS = [];   // lotes analizados (del dashboard)
-let CATALOG = [];    // tickers (watchlist) con ratio
-let WATCHLIVE = [];  // watchlist con precio en vivo (del dashboard)
+let HOLDINGS = [];
+let CATALOG = [];
+let WATCHLIVE = [];
+let REPORTS = [];
 let PAGE = 1;
+let CURRENT_SEC = 'resumen';
+let DIST_MODE = 'ticker';
+let LAST_CARTERA = { rows: [], view: 'lots' };
+const CHARTS = {};
 
 function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
@@ -18,7 +24,7 @@ async function api(path, opts = {}) {
   const res = await fetch('/api' + path, { ...opts, headers });
   if (res.status === 401) {
     const body = await res.json().catch(() => ({}));
-    if (body.login) { window.location.href = body.login; return new Promise(() => {}); } // SSO: ir al login
+    if (body.login) { window.location.href = body.login; return new Promise(() => {}); }
     const t = prompt('Esta app pide un token de acceso. Ingresalo:');
     if (t) { localStorage.setItem(TOKEN_KEY, t); return api(path, opts); }
     throw new Error('No autorizado');
@@ -46,11 +52,30 @@ function tagsHtml(obs) {
   return '<div class="tags">' + (obs || []).map(o => `<span class="tag">${o.text}</span>`).join('') + '</div>';
 }
 
+// ---------- Navegación ----------
+const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', tickers: 'Tickers', tenencias: 'Tenencias', reportes: 'Reportes diarios' };
+function showSection(sec) {
+  CURRENT_SEC = sec;
+  localStorage.setItem(SEC_KEY, sec);
+  document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+  document.getElementById('sec-' + sec).classList.remove('hidden');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.sec === sec));
+  document.getElementById('sec-title').textContent = SEC_TITLES[sec] || sec;
+  document.querySelector('.sidebar').classList.remove('open');
+  renderSection(sec);
+}
+function renderSection(sec) {
+  if (sec === 'resumen') renderResumen();
+  else if (sec === 'cartera') renderCartera();
+  else if (sec === 'tickers') renderCatalog();
+  else if (sec === 'tenencias') renderManage();
+  else if (sec === 'reportes') renderReportsList();
+}
+
 // ---------- Carga de datos ----------
 async function refreshCatalog() {
   try { CATALOG = await api('/watchlist'); } catch (e) { CATALOG = []; }
 }
-
 async function loadDashboard() {
   let data;
   try { data = await api('/dashboard'); }
@@ -58,17 +83,19 @@ async function loadDashboard() {
   HOLDINGS = data.holdings || [];
   WATCHLIVE = data.watch || [];
   populateFilterOptions();
-  renderCartera();
-  renderCatalog();
   if (data.errors && data.errors.length) toast('Sin datos para: ' + data.errors.map(e => e.ticker).join(', '));
 }
-
+async function loadReports() {
+  REPORTS = await api('/reports').catch(() => []);
+}
 async function loadAll() {
   await refreshCatalog();
   await loadDashboard();
+  await loadReports();
+  renderSection(CURRENT_SEC);
 }
 
-// ---------- Filtros ----------
+// ---------- Filtros / cálculos ----------
 function getFilters() {
   return {
     view: document.getElementById('f-view').value,
@@ -81,15 +108,11 @@ function getFilters() {
     pageSize: parseInt(document.getElementById('f-pagesize').value, 10) || 25,
   };
 }
-
 function clearFilters() {
   ['f-type', 'f-ticker', 'f-year', 'f-pl'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('f-from').value = '';
-  document.getElementById('f-to').value = '';
-  PAGE = 1;
-  renderCartera();
+  document.getElementById('f-from').value = ''; document.getElementById('f-to').value = '';
+  PAGE = 1; renderCartera();
 }
-
 function applyFilters(lots, f) {
   return lots.filter(h => {
     if (f.type && h.type !== f.type) return false;
@@ -103,37 +126,23 @@ function applyFilters(lots, f) {
     return true;
   });
 }
-
-// Consolida lotes por ticker (precio de compra promedio ponderado).
 function consolidate(lots) {
   const by = {};
   for (const h of lots) {
-    const g = (by[h.ticker] ??= {
-      ticker: h.ticker, type: h.type, ratio: h.ratio, price: h.price, changePct: h.changePct,
-      quantity: 0, shares: 0, cost: 0, value: 0, dates: [], lots: 0,
-    });
+    const g = (by[h.ticker] ??= { ticker: h.ticker, type: h.type, ratio: h.ratio, price: h.price, changePct: h.changePct, quantity: 0, shares: 0, cost: 0, value: 0, lots: 0 });
     const shares = h.ratio > 0 ? h.quantity / h.ratio : 0;
-    g.quantity += h.quantity;
-    g.shares += shares;
-    g.cost += h.positionCost || 0;
-    g.value += h.positionValue || 0;
-    if (h.purchase_date) g.dates.push(String(h.purchase_date).slice(0, 10));
-    g.lots += 1;
+    g.quantity += h.quantity; g.shares += shares; g.cost += h.positionCost || 0; g.value += h.positionValue || 0; g.lots += 1;
   }
   return Object.values(by).map(g => {
     const plAbs = round2(g.value - g.cost);
     const plPct = g.cost > 0 ? round2((plAbs / g.cost) * 100) : null;
-    const buyAvg = g.shares > 0 ? round2(g.cost / g.shares) : null;
-    g.dates.sort();
     return {
       ticker: g.ticker, type: g.type, ratio: g.ratio, price: g.price, changePct: g.changePct,
-      quantity: g.quantity, buy_price: buyAvg, positionValue: round2(g.value),
-      positionCost: round2(g.cost), plAbs, plPct, lots: g.lots,
-      dateFrom: g.dates[0], dateTo: g.dates[g.dates.length - 1],
+      quantity: g.quantity, buy_price: g.shares > 0 ? round2(g.cost / g.shares) : null,
+      positionValue: round2(g.value), positionCost: round2(g.cost), plAbs, plPct, lots: g.lots,
     };
   }).sort((a, b) => (b.positionValue || 0) - (a.positionValue || 0));
 }
-
 function totalsOf(lots) {
   let value = 0, cost = 0;
   for (const h of lots) { value += h.positionValue || 0; cost += h.positionCost || 0; }
@@ -142,50 +151,159 @@ function totalsOf(lots) {
   const plPct = cost > 0 ? round2((pl / cost) * 100) : null;
   return { value, cost, pl, plPct };
 }
-
 function populateFilterOptions() {
-  // Tickers presentes en la cartera
   const tickers = [...new Set(HOLDINGS.map(h => h.ticker))].sort();
   const years = [...new Set(HOLDINGS.map(h => h.purchase_date ? String(h.purchase_date).slice(0, 4) : '').filter(Boolean))].sort();
-  const tSel = document.getElementById('f-ticker');
-  const ySel = document.getElementById('f-year');
-  const keepT = tSel.value, keepY = ySel.value;
+  const tSel = document.getElementById('f-ticker'), ySel = document.getElementById('f-year');
+  const kt = tSel.value, ky = ySel.value;
   tSel.innerHTML = '<option value="">Todos</option>' + tickers.map(t => `<option>${t}</option>`).join('');
   ySel.innerHTML = '<option value="">Todos</option>' + years.map(y => `<option>${y}</option>`).join('');
-  if (tickers.includes(keepT)) tSel.value = keepT;
-  if (years.includes(keepY)) ySel.value = keepY;
+  if (tickers.includes(kt)) tSel.value = kt;
+  if (years.includes(ky)) ySel.value = ky;
 }
 
-// ---------- Render cartera ----------
-function renderCartera() {
-  const f = getFilters();
-  const filtered = applyFilters(HOLDINGS, f);
-
-  // Totales SIEMPRE sobre el conjunto filtrado completo (no la página)
-  const t = totalsOf(filtered);
-  const anyFilter = f.type || f.ticker || f.year || f.from || f.to || f.pl;
-  document.getElementById('s-scope').textContent = anyFilter ? 'Valor (filtrado)' : 'Valor total';
+// ---------- RESUMEN ----------
+function renderResumen() {
+  const t = totalsOf(HOLDINGS);
   document.getElementById('s-value').textContent = money(t.value);
   const pl = document.getElementById('s-pl'); pl.textContent = money(t.pl); pl.className = 'card-value ' + cls(t.pl);
   const plp = document.getElementById('s-plpct'); plp.textContent = pctStr(t.plPct); plp.className = 'card-value ' + cls(t.plPct);
+  document.getElementById('s-count').textContent = HOLDINGS.length;
+  if (typeof Chart === 'undefined') return;
+  renderDist(); renderWinLoss(); renderEvolution(); renderYearTable();
+}
 
-  // Filas a mostrar segun vista
-  const rows = f.view === 'consolidated' ? consolidate(filtered) : filtered.slice().sort((a, b) =>
-    (b.purchase_date || '').localeCompare(a.purchase_date || ''));
+function renderDist() {
+  const rows = consolidate(HOLDINGS).filter(r => r.positionValue > 0);
+  let labels, data;
+  if (DIST_MODE === 'type') {
+    const by = {}; rows.forEach(r => by[r.type] = (by[r.type] || 0) + r.positionValue);
+    labels = Object.keys(by); data = Object.values(by);
+  } else {
+    labels = rows.map(r => r.ticker); data = rows.map(r => r.positionValue);
+  }
+  drawChart('dist', 'chart-dist', {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: palette(labels.length) }] },
+    options: { plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } }, maintainAspectRatio: false },
+  });
+}
 
-  document.getElementById('s-count-label').textContent = f.view === 'consolidated' ? 'Tickers' : 'Lotes';
-  document.getElementById('s-count').textContent = rows.length;
+function renderWinLoss() {
+  const rows = consolidate(HOLDINGS).filter(r => r.plPct !== null);
+  const sorted = [...rows].sort((a, b) => b.plPct - a.plPct);
+  const top = sorted.slice(0, 5), bottom = sorted.slice(-5).filter(x => !top.includes(x));
+  const sel = [...top, ...bottom];
+  drawChart('wl', 'chart-wl', {
+    type: 'bar',
+    data: {
+      labels: sel.map(r => r.ticker),
+      datasets: [{ data: sel.map(r => r.plPct), backgroundColor: sel.map(r => r.plPct >= 0 ? '#0a7d33' : '#c0271a') }],
+    },
+    options: {
+      indexAxis: 'y', plugins: { legend: { display: false } }, maintainAspectRatio: false,
+      scales: { x: { ticks: { callback: v => v + '%' } } },
+    },
+  });
+}
 
-  // Paginado
-  const size = f.pageSize;
-  const pages = Math.max(1, Math.ceil(rows.length / size));
+function renderEvolution() {
+  const r = [...REPORTS].reverse(); // cronologico
+  const labels = r.map(x => new Date(x.created_at).toLocaleDateString('es-AR'));
+  const value = r.map(x => x.summary?.totalValue ?? null);
+  const pct = r.map(x => x.summary?.totalPlPct ?? null);
+  if (r.length < 1) { destroyChart('evo'); return; }
+  drawChart('evo', 'chart-evo', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Valor', data: value, borderColor: '#1a5fb4', backgroundColor: 'rgba(26,95,180,.1)', yAxisID: 'y', tension: .25, fill: true },
+        { label: 'Rend. %', data: pct, borderColor: '#0a7d33', yAxisID: 'y1', tension: .25 },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: { y: { position: 'left' }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } },
+    },
+  });
+}
+
+// Rendimiento por año de cada ticker (matriz ticker x año)
+function renderYearTable() {
+  const el = document.getElementById('year-table');
+  if (!HOLDINGS.length) { el.innerHTML = '<div class="empty">Sin datos.</div>'; return; }
+  const years = [...new Set(HOLDINGS.map(h => yearOf(h)).filter(Boolean))].sort();
+  const tickers = [...new Set(HOLDINGS.map(h => h.ticker))].sort();
+  const acc = {}; // ticker -> year -> {cost,value}
+  for (const h of HOLDINGS) {
+    const y = yearOf(h); if (!y) continue;
+    ((acc[h.ticker] ??= {})[y] ??= { cost: 0, value: 0 });
+    acc[h.ticker][y].cost += h.positionCost || 0;
+    acc[h.ticker][y].value += h.positionValue || 0;
+  }
+  const cell = (c) => {
+    if (!c || !c.cost) return '<td class="muted-sm">—</td>';
+    const p = round2(((c.value - c.cost) / c.cost) * 100);
+    return `<td class="${cls(p)}">${pctStr(p)}</td>`;
+  };
+  const colTotals = {};
+  let head = '<table class="heat"><thead><tr><th>Ticker</th>' + years.map(y => `<th class="num">${y}</th>`).join('') + '<th class="num">Total</th></tr></thead><tbody>';
+  const body = tickers.map(tk => {
+    let tc = 0, tv = 0;
+    const cells = years.map(y => {
+      const c = acc[tk]?.[y];
+      if (c) { tc += c.cost; tv += c.value; colTotals[y] = colTotals[y] || { cost: 0, value: 0 }; colTotals[y].cost += c.cost; colTotals[y].value += c.value; }
+      return cell(c);
+    }).join('');
+    const tot = tc ? round2(((tv - tc) / tc) * 100) : null;
+    return `<tr><td><b>${tk}</b></td>${cells}<td class="${cls(tot)}"><b>${pctStr(tot)}</b></td></tr>`;
+  }).join('');
+  const totRow = '<tr><td><b>Total</b></td>' + years.map(y => {
+    const c = colTotals[y]; const p = c && c.cost ? round2(((c.value - c.cost) / c.cost) * 100) : null;
+    return `<td class="${cls(p)}"><b>${pctStr(p)}</b></td>`;
+  }).join('') + (() => { const t = totalsOf(HOLDINGS); return `<td class="${cls(t.plPct)}"><b>${pctStr(t.plPct)}</b></td>`; })() + '</tr>';
+  el.innerHTML = head + body + totRow + '</tbody></table>';
+}
+function yearOf(h) { return h.purchase_date ? String(h.purchase_date).slice(0, 4) : ''; }
+
+function palette(n) {
+  const base = ['#1a5fb4', '#0a7d33', '#c0271a', '#e08a00', '#6f42c1', '#17a2b8', '#d63384', '#2b8a3e', '#856404', '#0c5460', '#5f3dc4', '#b02a37', '#087990', '#9c6644', '#3b5bdb', '#2f9e44', '#e8590c', '#7048e8'];
+  const out = []; for (let i = 0; i < n; i++) out.push(base[i % base.length]); return out;
+}
+function drawChart(key, canvasId, cfg) {
+  destroyChart(key);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  CHARTS[key] = new Chart(ctx, cfg);
+}
+function destroyChart(key) { if (CHARTS[key]) { CHARTS[key].destroy(); delete CHARTS[key]; } }
+function emptyCanvas(id, msg) {
+  const d = document.createElement('div'); d.id = id; d.className = 'empty'; d.textContent = msg; return d;
+}
+
+// ---------- CARTERA ----------
+function renderCartera() {
+  const f = getFilters();
+  const filtered = applyFilters(HOLDINGS, f);
+  const t = totalsOf(filtered);
+  const rows = f.view === 'consolidated' ? consolidate(filtered)
+    : filtered.slice().sort((a, b) => (b.purchase_date || '').localeCompare(a.purchase_date || ''));
+  LAST_CARTERA = { rows, view: f.view };
+
+  document.getElementById('totals-strip').innerHTML =
+    `<span>Valor: <b>${money(t.value)}</b></span>
+     <span>Resultado: <b class="${cls(t.pl)}">${money(t.pl)}</b></span>
+     <span>Rendimiento: <b class="${cls(t.plPct)}">${pctStr(t.plPct)}</b></span>
+     <span>${f.view === 'consolidated' ? 'Tickers' : 'Lotes'}: <b>${rows.length}</b></span>`;
+
+  const size = f.pageSize, pages = Math.max(1, Math.ceil(rows.length / size));
   if (PAGE > pages) PAGE = pages;
-  const start = (PAGE - 1) * size;
-  const pageRows = rows.slice(start, start + size);
-
+  const start = (PAGE - 1) * size, pageRows = rows.slice(start, start + size);
   const el = document.getElementById('holdings-table');
+
   if (!rows.length) {
-    el.innerHTML = '<div class="empty">' + (HOLDINGS.length ? 'Ningún resultado con esos filtros.' : 'Todavía no cargaste tenencias. Usá “+ Agregar tenencia”.') + '</div>';
+    el.innerHTML = '<div class="empty">' + (HOLDINGS.length ? 'Ningún resultado con esos filtros.' : 'No hay tenencias. Cargalas en la sección Tenencias.') + '</div>';
   } else if (f.view === 'consolidated') {
     el.innerHTML = `<table><thead><tr>
         <th>Ticker</th><th class="num">Compra prom.</th><th class="num">Actual</th>
@@ -193,8 +311,7 @@ function renderCartera() {
       </tr></thead><tbody>${pageRows.map(r => `
         <tr>
           <td><b>${r.ticker}</b> <span class="muted-sm">${r.type} · ${r.quantity} CEDEARs · ${r.lots} lote${r.lots > 1 ? 's' : ''}</span></td>
-          <td class="num">${money(r.buy_price)}</td>
-          <td class="num">${money(r.price)}</td>
+          <td class="num">${money(r.buy_price)}</td><td class="num">${money(r.price)}</td>
           <td class="num ${cls(r.changePct)}">${pctStr(r.changePct)}</td>
           <td class="num ${cls(r.plPct)}"><b>${pctStr(r.plPct)}</b></td>
           <td class="num hide-sm">${money(r.positionValue)}</td>
@@ -202,70 +319,90 @@ function renderCartera() {
   } else {
     el.innerHTML = `<table><thead><tr>
         <th>Ticker</th><th class="num">Compra</th><th class="num">Actual</th>
-        <th class="num hide-sm">Fecha</th><th class="num">Hoy</th><th class="num">P/G</th>
-        <th class="num hide-sm">Valor</th><th class="num"></th>
+        <th class="num hide-sm">Fecha</th><th class="num">Hoy</th><th class="num">P/G</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(h => `
         <tr>
           <td><b>${h.ticker}</b> <span class="muted-sm">${h.type} · ${h.quantity} CEDEARs · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
-          <td class="num">${money(h.buy_price)}</td>
-          <td class="num">${money(h.price)}</td>
+          <td class="num">${money(h.buy_price)}</td><td class="num">${money(h.price)}</td>
           <td class="num hide-sm">${fmtDate(h.purchase_date)}</td>
           <td class="num ${cls(h.changePct)}">${pctStr(h.changePct)}</td>
           <td class="num ${cls(h.plPct)}"><b>${pctStr(h.plPct)}</b></td>
           <td class="num hide-sm">${h.positionValue !== null ? money(h.positionValue) : '—'}</td>
-          <td class="num row-actions">
-            <button onclick='openHoldingForm(${JSON.stringify(h).replace(/'/g, "&#39;")})'>✏️</button>
-            <button onclick="delHolding(${h.id})">🗑️</button>
-          </td>
         </tr>`).join('')}</tbody></table>`;
   }
-
-  // Controles de paginado
-  const from = rows.length ? start + 1 : 0;
-  const to = Math.min(start + size, rows.length);
+  const from = rows.length ? start + 1 : 0, to = Math.min(start + size, rows.length);
   document.getElementById('pager-info').textContent = `Mostrando ${from}–${to} de ${rows.length}`;
   document.getElementById('page-label').textContent = `Página ${PAGE} / ${pages}`;
   document.getElementById('prev-page').disabled = PAGE <= 1;
   document.getElementById('next-page').disabled = PAGE >= pages;
 }
 
-// ---------- Render catálogo de tickers ----------
-function renderCatalog() {
-  const live = {};
-  for (const w of WATCHLIVE) live[w.ticker] = w;
-  const el = document.getElementById('watch-table');
-  if (!CATALOG.length) {
-    el.innerHTML = '<div class="empty">No hay tickers todavía. Usá “Cargar sugeridos” o “+ Agregar ticker”.</div>';
-    return;
+function exportCsv() {
+  const { rows, view } = LAST_CARTERA;
+  if (!rows.length) return toast('No hay datos para exportar');
+  let headers, line;
+  if (view === 'consolidated') {
+    headers = ['Ticker', 'Tipo', 'CEDEARs', 'CompraProm', 'Actual', 'PG%', 'Valor', 'Costo', 'Lotes'];
+    line = (r) => [r.ticker, r.type, r.quantity, r.buy_price, r.price, r.plPct, r.positionValue, r.positionCost, r.lots];
+  } else {
+    headers = ['Ticker', 'Tipo', 'Fecha', 'Compra', 'CEDEARs', 'Ratio', 'Actual', 'PG%', 'Valor', 'Costo'];
+    line = (h) => [h.ticker, h.type, (h.purchase_date || '').slice(0, 10), h.buy_price, h.quantity, h.ratio, h.price, h.plPct, h.positionValue, h.positionCost];
   }
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [headers.join(','), ...rows.map(r => line(r).map(esc).join(','))].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cartera-${view}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------- TICKERS (catálogo) ----------
+function renderCatalog() {
+  const live = {}; for (const w of WATCHLIVE) live[w.ticker] = w;
+  const el = document.getElementById('watch-table');
+  if (!CATALOG.length) { el.innerHTML = '<div class="empty">No hay tickers. Usá “Cargar sugeridos” o “+ Agregar ticker”.</div>'; return; }
   el.innerHTML = `<table><thead><tr>
-      <th>Ticker</th><th>Tipo</th><th class="num">Ratio</th>
-      <th class="num hide-sm">Precio</th><th class="num hide-sm">Hoy</th><th class="num"></th>
+      <th>Ticker</th><th>Tipo</th><th class="num">Ratio</th><th class="num hide-sm">Precio</th><th class="num hide-sm">Hoy</th><th class="num"></th>
     </tr></thead><tbody>${CATALOG.map(w => {
         const l = live[w.ticker];
         return `<tr>
-          <td><b>${w.ticker}</b></td>
-          <td>${tType(w.ticker)}</td>
-          <td class="num">${w.ratio}</td>
+          <td><b>${w.ticker}</b></td><td>${tType(w.ticker)}</td><td class="num">${w.ratio}</td>
           <td class="num hide-sm">${l ? money(l.price) : '—'}</td>
           <td class="num hide-sm ${l ? cls(l.changePct) : ''}">${l ? pctStr(l.changePct) : '—'}</td>
-          <td class="num row-actions">
-            <button onclick='openWatchForm(${JSON.stringify(w).replace(/'/g, "&#39;")})'>✏️</button>
-            <button onclick="delWatch(${w.id})">🗑️</button>
-          </td>
+          <td class="num row-actions"><button onclick='openWatchForm(${JSON.stringify(w).replace(/'/g, "&#39;")})'>✏️</button><button onclick="delWatch(${w.id})">🗑️</button></td>
         </tr>`;
       }).join('')}</tbody></table>`;
 }
 
-// ---------- Reportes ----------
-async function loadReports() {
-  const rows = await api('/reports').catch(() => []);
+// ---------- TENENCIAS (gestión) ----------
+function renderManage() {
+  const el = document.getElementById('manage-table');
+  if (!HOLDINGS.length) { el.innerHTML = '<div class="empty">No hay tenencias. Usá “Cargar mis compras”, “Importar lista” o “+ Agregar tenencia”.</div>'; return; }
+  const rows = HOLDINGS.slice().sort((a, b) => (b.purchase_date || '').localeCompare(a.purchase_date || ''));
+  el.innerHTML = `<div class="muted-sm" style="margin-bottom:8px">${HOLDINGS.length} tenencias cargadas</div>
+    <table><thead><tr>
+      <th>Ticker</th><th class="num">Fecha</th><th class="num">Compra</th><th class="num">CEDEARs</th><th class="num hide-sm">Ratio</th><th class="num"></th>
+    </tr></thead><tbody>${rows.map(h => `
+      <tr>
+        <td><b>${h.ticker}</b></td>
+        <td class="num">${fmtDate(h.purchase_date)}</td>
+        <td class="num">${money(h.buy_price)}</td>
+        <td class="num">${h.quantity}</td>
+        <td class="num hide-sm">${h.ratio}</td>
+        <td class="num row-actions"><button onclick='openHoldingForm(${JSON.stringify(h).replace(/'/g, "&#39;")})'>✏️</button><button onclick="delHolding(${h.id})">🗑️</button></td>
+      </tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- REPORTES ----------
+function renderReportsList() {
   const el = document.getElementById('reports-list');
-  if (!rows.length) { el.innerHTML = '<div class="empty">Todavía no se generó ningún reporte.</div>'; return; }
-  el.innerHTML = `<table><tbody>${rows.map(r => `
+  if (!REPORTS.length) { el.innerHTML = '<div class="empty">Todavía no se generó ningún reporte.</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Fecha</th><th class="num">Valor</th><th class="num">Rendimiento</th><th class="num">Mail</th></tr></thead><tbody>${REPORTS.map(r => `
     <tr>
       <td>${new Date(r.created_at).toLocaleString('es-AR')}</td>
-      <td class="num ${cls(r.summary.totalPlPct)}">${pctStr(r.summary.totalPlPct)}</td>
+      <td class="num">${money(r.summary?.totalValue)}</td>
+      <td class="num ${cls(r.summary?.totalPlPct)}">${pctStr(r.summary?.totalPlPct)}</td>
       <td class="num">${r.emailed ? '✉️ enviado' : '—'}</td>
     </tr>`).join('')}</tbody></table>`;
 }
@@ -276,10 +413,8 @@ function closeModal() { modal.classList.add('hidden'); }
 function field(label, id, value = '', type = 'text', ph = '') {
   return `<label>${label}</label><input id="f-${id}" type="${type}" value="${value ?? ''}" placeholder="${ph}">`;
 }
-
-// Tenencia: ticker desplegable desde el catálogo, ratio heredado
 function openHoldingForm(h = null) {
-  if (!CATALOG.length) { toast('Primero agregá tickers en la lista de deseables'); return; }
+  if (!CATALOG.length) { toast('Primero agregá tickers en la sección Tickers'); showSection('tickers'); return; }
   document.getElementById('modal-title').textContent = h ? 'Editar tenencia' : 'Nueva tenencia';
   const dateVal = h?.purchase_date ? String(h.purchase_date).slice(0, 10) : '';
   const opts = CATALOG.map(c => `<option value="${c.ticker}" data-ratio="${c.ratio}" ${h && h.ticker === c.ticker ? 'selected' : ''}>${c.ticker} (ratio ${c.ratio})</option>`).join('');
@@ -292,39 +427,33 @@ function openHoldingForm(h = null) {
     ${field('Nominales (cantidad de CEDEARs)', 'qty', h?.quantity ?? '', 'number', '90')}
     ${field('Fecha de compra', 'pdate', dateVal, 'date')}
     ${field('Notas (opcional)', 'notes', h?.notes || '')}`;
-  const sel = document.getElementById('f-ticker-sel');
-  const rEl = document.getElementById('f-ratio');
-  const syncRatio = () => { rEl.value = sel.selectedOptions[0]?.dataset.ratio || ''; };
-  if (!h) syncRatio();
-  sel.addEventListener('change', syncRatio);
+  const sel = document.getElementById('f-ticker-sel'), rEl = document.getElementById('f-ratio');
+  const sync = () => { rEl.value = sel.selectedOptions[0]?.dataset.ratio || ''; };
+  if (!h) sync();
+  sel.addEventListener('change', sync);
   document.getElementById('modal-save').onclick = async () => {
     const body = {
-      ticker: sel.value,
-      buy_price: parseFloat(document.getElementById('f-buy').value),
+      ticker: sel.value, buy_price: parseFloat(document.getElementById('f-buy').value),
       quantity: parseFloat(document.getElementById('f-qty').value) || 0,
-      ratio: parseFloat(rEl.value) || null,
-      purchase_date: document.getElementById('f-pdate').value || null,
+      ratio: parseFloat(rEl.value) || null, purchase_date: document.getElementById('f-pdate').value || null,
       notes: document.getElementById('f-notes').value,
     };
     if (!body.ticker || isNaN(body.buy_price)) return toast('Ticker y precio son obligatorios');
     try {
       if (h) await api('/holdings/' + h.id, { method: 'PUT', body: JSON.stringify(body) });
       else await api('/holdings', { method: 'POST', body: JSON.stringify(body) });
-      closeModal(); toast('Guardado'); loadDashboard();
+      closeModal(); toast('Guardado'); await loadAll();
     } catch (e) { toast(e.message); }
   };
   modal.classList.remove('hidden');
 }
-
-// Ticker del catálogo: alta o edición de ratio
 function openWatchForm(w = null) {
   document.getElementById('modal-title').textContent = w ? `Editar ${w.ticker}` : 'Agregar ticker';
   document.getElementById('modal-body').innerHTML =
     field('Ticker (ej. NVDA)', 'wticker', w?.ticker || '', 'text', 'NVDA') +
     field('Ratio (CEDEARs por acción)', 'wratio', w?.ratio ?? '', 'number', '1') +
     field('Notas (opcional)', 'wnotes', w?.notes || '');
-  const tEl = document.getElementById('f-wticker');
-  const rEl = document.getElementById('f-wratio');
+  const tEl = document.getElementById('f-wticker'), rEl = document.getElementById('f-wratio');
   if (w) tEl.setAttribute('readonly', 'true');
   const fill = () => { const s = RATIOS[tEl.value.toUpperCase().trim()]; if (s && !rEl.value) rEl.value = s; };
   tEl.addEventListener('input', fill); tEl.addEventListener('blur', fill);
@@ -334,38 +463,13 @@ function openWatchForm(w = null) {
     try {
       if (w) await api('/watchlist/' + w.id, { method: 'PUT', body: JSON.stringify({ ratio: body.ratio, notes: body.notes }) });
       else await api('/watchlist', { method: 'POST', body: JSON.stringify(body) });
-      closeModal(); toast('Guardado'); loadAll();
+      closeModal(); toast('Guardado'); await loadAll();
     } catch (e) { toast(e.message); }
   };
   modal.classList.remove('hidden');
 }
 
-async function loadSuggestedTickers() {
-  if (!confirm('¿Cargar los tickers sugeridos con sus ratios (AVGO, MSFT, GOOGL, etc.)?')) return;
-  try {
-    const r = await api('/admin/seed-tickers', { method: 'POST', body: '{}' });
-    toast(`Cargados ${r.tickers} tickers`); loadAll();
-  } catch (e) { toast(e.message); }
-}
-
-async function loadMyHoldings() {
-  if (!confirm('¿Cargar tus compras desde el archivo incluido (data/holdings.json)?')) return;
-  try {
-    const r = await api('/admin/seed-holdings', { method: 'POST', body: JSON.stringify({ reset: false }) });
-    toast(`Cargadas ${r.inserted} compras · ${r.tickers} tickers`); loadAll();
-  } catch (e) { toast(e.message); }
-}
-
-async function resetDb() {
-  if (!confirm('Esto borra TODO: tenencias, tickers y reportes. ¿Empezar de 0?')) return;
-  if (!confirm('Confirmá una vez más: se borra todo y no se puede deshacer.')) return;
-  try {
-    await api('/admin/reset', { method: 'POST', body: '{}' });
-    toast('Base limpia. Cargá tickers y compras.'); loadAll(); loadReports();
-  } catch (e) { toast(e.message); }
-}
-
-// ---------- Importación masiva ----------
+// ---------- Importación / admin ----------
 function normNum(s) { return parseFloat(String(s).replace(/\./g, '').replace(',', '.')); }
 function normDate(d) {
   const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if (!m) return null;
@@ -384,21 +488,14 @@ function parseHoldingsText(text) {
   }
   return { items, errors };
 }
-
 function openImportForm() {
   document.getElementById('modal-title').textContent = 'Importar lista de compras';
   document.getElementById('modal-body').innerHTML = `
-    <p style="font-size:12px;color:#7a8190;margin:0 0 8px">
-      Pegá tus filas con columnas: <b>fecha · ticker · precio acción · nominales</b>
-      (ej. <code>13/8/24 MSFT $ 410,75 10</code>). Los tickers se agregan al catálogo solos.
-    </p>
+    <p style="font-size:12px;color:#7a8190;margin:0 0 8px">Pegá filas: <b>fecha · ticker · precio acción · nominales</b> (ej. <code>13/8/24 MSFT $ 410,75 10</code>).</p>
     <textarea id="f-import" rows="9" placeholder="13/8/24  MSFT  $ 410,75  10"></textarea>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#1c1c1c">
-      <input type="checkbox" id="f-reset" style="width:auto"> Reemplazar lo que ya tengo cargado (borrar antes)
-    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#1c1c1c"><input type="checkbox" id="f-reset" style="width:auto"> Reemplazar lo que ya tengo</label>
     <div id="import-preview" style="font-size:12px;color:#7a8190;margin-top:8px"></div>`;
-  const ta = document.getElementById('f-import');
-  const prev = document.getElementById('import-preview');
+  const ta = document.getElementById('f-import'), prev = document.getElementById('import-preview');
   ta.addEventListener('input', () => {
     const { items, errors } = parseHoldingsText(ta.value);
     prev.textContent = ta.value.trim() ? `Detectadas ${items.length} filas` + (errors.length ? ` · ${errors.length} no reconocidas` : '') : '';
@@ -406,69 +503,85 @@ function openImportForm() {
   document.getElementById('modal-save').onclick = async () => {
     const { items, errors } = parseHoldingsText(ta.value);
     if (!items.length) return toast('No se detectaron filas válidas');
-    if (errors.length && !confirm(`${errors.length} líneas no se reconocieron y se omitirán. ¿Importar las ${items.length} válidas?`)) return;
+    if (errors.length && !confirm(`${errors.length} líneas no se reconocieron. ¿Importar las ${items.length} válidas?`)) return;
     const reset = document.getElementById('f-reset').checked;
     try {
       const r = await api('/holdings/bulk', { method: 'POST', body: JSON.stringify({ items, reset }) });
-      closeModal(); toast(`Importadas ${r.inserted} tenencias`); loadAll();
+      closeModal(); toast(`Importadas ${r.inserted} tenencias`); await loadAll();
     } catch (e) { toast(e.message); }
   };
   modal.classList.remove('hidden');
 }
-
+async function loadSuggestedTickers() {
+  if (!confirm('¿Cargar los tickers sugeridos con sus ratios?')) return;
+  try { const r = await api('/admin/seed-tickers', { method: 'POST', body: '{}' }); toast(`Cargados ${r.tickers} tickers`); await loadAll(); }
+  catch (e) { toast(e.message); }
+}
+async function loadMyHoldings() {
+  if (!confirm('¿Cargar tus compras desde el archivo incluido?')) return;
+  try { const r = await api('/admin/seed-holdings', { method: 'POST', body: JSON.stringify({ reset: false }) }); toast(`Cargadas ${r.inserted} compras · ${r.tickers} tickers`); await loadAll(); }
+  catch (e) { toast(e.message); }
+}
+async function resetDb() {
+  if (!confirm('Esto borra TODO: tenencias, tickers y reportes. ¿Empezar de 0?')) return;
+  if (!confirm('Confirmá de nuevo: se borra todo y no se puede deshacer.')) return;
+  try { await api('/admin/reset', { method: 'POST', body: '{}' }); toast('Base limpia'); await loadAll(); }
+  catch (e) { toast(e.message); }
+}
 async function delHolding(id) {
   if (!confirm('¿Eliminar esta tenencia?')) return;
-  await api('/holdings/' + id, { method: 'DELETE' }); toast('Eliminada'); loadDashboard();
+  await api('/holdings/' + id, { method: 'DELETE' }); toast('Eliminada'); await loadAll();
 }
 async function delWatch(id) {
   if (!confirm('¿Quitar este ticker del catálogo?')) return;
-  await api('/watchlist/' + id, { method: 'DELETE' }); toast('Quitado'); loadAll();
+  await api('/watchlist/' + id, { method: 'DELETE' }); toast('Quitado'); await loadAll();
 }
 
-// ---------- Status + run ----------
+// ---------- Config / run ----------
 async function loadConfig() {
   try {
     CONFIG = await api('/config');
     CONFIG.currency = CONFIG.currency || 'USD';
     const pill = document.getElementById('status-pill');
-    const parts = [];
-    parts.push(CONFIG.marketKey ? 'datos ✓' : 'datos: modo demo');
-    parts.push(CONFIG.emailConfigured ? 'mail ✓' : 'mail sin configurar');
-    parts.push(`reporte ${String(CONFIG.reportHour).padStart(2, '0')}:${String(CONFIG.reportMinute).padStart(2, '0')}`);
-    pill.textContent = parts.join(' · ');
+    pill.textContent = [CONFIG.marketKey ? 'datos ✓' : 'datos demo', CONFIG.emailConfigured ? 'mail ✓' : 'sin mail', `rep ${String(CONFIG.reportHour).padStart(2, '0')}:${String(CONFIG.reportMinute).padStart(2, '0')}`].join(' · ');
     pill.className = 'pill ' + (CONFIG.marketKey && CONFIG.emailConfigured ? 'ok' : 'warn');
     if (CONFIG.sso && CONFIG.user) {
-      const up = document.getElementById('user-pill');
-      up.textContent = CONFIG.user; up.className = 'pill ok';
+      const up = document.getElementById('user-pill'); up.textContent = CONFIG.user; up.className = 'pill ok';
       document.getElementById('logout-link').style.display = '';
     }
   } catch (e) { /* noop */ }
 }
 
-document.getElementById('btn-run').onclick = async function () {
-  this.disabled = true; this.textContent = 'Generando…';
-  try {
-    const r = await api('/report/run', { method: 'POST', body: JSON.stringify({ send: true }) });
-    toast(r.emailResult.sent ? 'Reporte generado y enviado por mail ✉️' : 'Reporte generado (mail: ' + r.emailResult.reason + ')');
-    loadReports();
-  } catch (e) { toast(e.message); }
-  this.disabled = false; this.textContent = 'Generar reporte ahora';
-};
-
-// ---------- Eventos de filtros / paginado ----------
-function bindFilters() {
+// ---------- Eventos ----------
+function bindEvents() {
+  document.querySelectorAll('.nav-item').forEach(n => n.onclick = () => showSection(n.dataset.sec));
+  document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   ['f-view', 'f-type', 'f-ticker', 'f-year', 'f-from', 'f-to', 'f-pl', 'f-pagesize'].forEach(id => {
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; renderCartera(); });
   });
   document.getElementById('prev-page').onclick = () => { if (PAGE > 1) { PAGE--; renderCartera(); } };
   document.getElementById('next-page').onclick = () => { PAGE++; renderCartera(); };
+  document.querySelectorAll('.seg-btn').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.seg-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); DIST_MODE = b.dataset.dist; renderDist();
+  });
+  document.getElementById('btn-run').onclick = async function () {
+    this.disabled = true; this.textContent = 'Generando…';
+    try {
+      const r = await api('/report/run', { method: 'POST', body: JSON.stringify({ send: true }) });
+      toast(r.emailResult.sent ? 'Reporte generado y enviado ✉️' : 'Reporte generado (mail: ' + r.emailResult.reason + ')');
+      await loadReports(); if (CURRENT_SEC === 'reportes' || CURRENT_SEC === 'resumen') renderSection(CURRENT_SEC);
+    } catch (e) { toast(e.message); }
+    this.disabled = false; this.textContent = 'Generar reporte ahora';
+  };
 }
 
 // ---------- Init ----------
 (async function init() {
-  bindFilters();
+  bindEvents();
   await loadConfig();
   try { RATIOS = await api('/ratios'); } catch (e) { RATIOS = {}; }
+  CURRENT_SEC = localStorage.getItem(SEC_KEY) || 'resumen';
   await loadAll();
-  await loadReports();
+  showSection(CURRENT_SEC);
 })();
