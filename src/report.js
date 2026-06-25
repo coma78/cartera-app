@@ -1,6 +1,7 @@
 import { listHoldings, listWatchlist, saveReport } from './db.js';
-import { getQuoteSafe } from './marketData.js';
+import { getQuoteSafe, getNews } from './marketData.js';
 import { analyzeHolding, analyzeWatch, portfolioSummary } from './analysis.js';
+import { tickerType } from './ratios.js';
 import { sendEmail, emailConfigured } from './email.js';
 
 const CURRENCY = process.env.CURRENCY || 'USD';
@@ -21,24 +22,52 @@ function color(n) {
   return n > 0 ? '#0a7d33' : n < 0 ? '#c0271a' : '#555';
 }
 
+// Entrada "degradada": cuando no hay cotizacion, igual mostramos la posicion
+// (sin precio/P&L) para que no desaparezca de la vista.
+function degradedHolding(h) {
+  const ratio = Number(h.ratio) > 0 ? Number(h.ratio) : 1;
+  return {
+    id: h.id, ticker: h.ticker, type: tickerType(h.ticker),
+    buy_price: Number(h.buy_price), quantity: Number(h.quantity) || 0, ratio,
+    purchase_date: h.purchase_date || null,
+    price: null, cedearPrice: null, changePct: null, change: null,
+    plPct: null, plAbs: null, positionValue: null, positionCost: null,
+    notes: h.notes || '', observations: [{ tag: 'info', text: 'Sin cotización hoy' }],
+  };
+}
+
 // Construye el objeto de reporte completo (datos + HTML), sin enviar ni guardar.
 export async function buildReport() {
   const [holdings, watch] = await Promise.all([listHoldings(), listWatchlist()]);
 
+  // Cotizamos UNA sola vez por ticker (no por cada tenencia) para no
+  // pegarle de más a la API y que no se corte por límite de pedidos.
+  const quoteCache = new Map();
+  const getQ = async (ticker) => {
+    if (!quoteCache.has(ticker)) quoteCache.set(ticker, await getQuoteSafe(ticker, false));
+    return quoteCache.get(ticker);
+  };
+
   const holdingResults = [];
   const errors = [];
   for (const h of holdings) {
-    const r = await getQuoteSafe(h.ticker, false);
+    const r = await getQ(h.ticker);
     if (r.ok) holdingResults.push(analyzeHolding(h, r.quote));
-    else errors.push({ ticker: r.symbol, error: r.error });
+    else { holdingResults.push(degradedHolding(h)); }
   }
 
   const watchResults = [];
   for (const w of watch) {
-    const r = await getQuoteSafe(w.ticker, true);
-    if (r.ok) watchResults.push(analyzeWatch(w, r.quote, r.news));
-    else errors.push({ ticker: r.symbol, error: r.error });
+    const r = await getQ(w.ticker);
+    if (r.ok) {
+      const news = await getNews(w.ticker); // una vez por ticker de la watchlist (son únicos)
+      watchResults.push(analyzeWatch(w, r.quote, news));
+    } else {
+      errors.push({ ticker: w.ticker, error: r.error });
+    }
   }
+  // Tickers que no pudieron cotizar (únicos)
+  for (const [tk, r] of quoteCache) if (!r.ok && !errors.find((e) => e.ticker === tk)) errors.push({ ticker: tk, error: r.error });
 
   const summary = portfolioSummary(holdingResults);
   const generatedAt = new Date().toISOString();

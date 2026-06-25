@@ -370,7 +370,7 @@ function renderCatalog() {
           <td><b>${w.ticker}</b></td><td>${tType(w.ticker)}</td><td class="num">${w.ratio}</td>
           <td class="num hide-sm">${l ? money(l.price) : '—'}</td>
           <td class="num hide-sm ${l ? cls(l.changePct) : ''}">${l ? pctStr(l.changePct) : '—'}</td>
-          <td class="num row-actions"><button onclick='openWatchForm(${JSON.stringify(w).replace(/'/g, "&#39;")})'>✏️</button><button onclick="delWatch(${w.id})">🗑️</button></td>
+          <td class="num row-actions"><button title="Cambiar ratio (split)" onclick='openRatioChange(${JSON.stringify(w).replace(/'/g, "&#39;")})'>🔁</button><button title="Editar" onclick='openWatchForm(${JSON.stringify(w).replace(/'/g, "&#39;")})'>✏️</button><button title="Borrar" onclick="delWatch(${w.id})">🗑️</button></td>
         </tr>`;
       }).join('')}</tbody></table>`;
 }
@@ -447,6 +447,37 @@ function openHoldingForm(h = null) {
   };
   modal.classList.remove('hidden');
 }
+// Cambio de ratio (split): actualiza catálogo + ajusta tenencias, con previo
+function openRatioChange(w) {
+  const lots = HOLDINGS.filter(h => h.ticker === w.ticker);
+  const totalNom = lots.reduce((a, h) => a + (Number(h.quantity) || 0), 0);
+  document.getElementById('modal-title').textContent = `Cambiar ratio de ${w.ticker}`;
+  document.getElementById('modal-body').innerHTML = `
+    <p style="font-size:13px;color:#7a8190;margin:0 0 10px">Ratio actual: <b>${w.ratio}</b>. Si el CEDEAR cambió de ratio (split), tus nominales se ajustan por el factor; tu valor y P&amp;L no cambian.</p>
+    <label>Nuevo ratio</label>
+    <input id="f-newratio" type="number" placeholder="60" min="0" step="any">
+    <div id="ratio-preview" style="font-size:13px;color:#1c1c1c;margin-top:10px"></div>`;
+  const inp = document.getElementById('f-newratio');
+  const prev = document.getElementById('ratio-preview');
+  const upd = () => {
+    const nr = parseFloat(inp.value);
+    if (!(nr > 0)) { prev.textContent = ''; return; }
+    const factor = nr / Number(w.ratio);
+    prev.innerHTML = `Factor: <b>×${round2(factor)}</b> · Lotes afectados: <b>${lots.length}</b><br>Nominales totales: <b>${totalNom}</b> → <b>${Math.round(totalNom * factor)}</b>`;
+  };
+  inp.addEventListener('input', upd);
+  document.getElementById('modal-save').onclick = async () => {
+    const nr = parseFloat(inp.value);
+    if (!(nr > 0)) return toast('Ingresá un ratio válido');
+    if (!confirm(`Cambiar ${w.ticker} de ratio ${w.ratio} a ${nr} y ajustar ${lots.length} lote(s)?`)) return;
+    try {
+      const r = await api('/ratio-change', { method: 'POST', body: JSON.stringify({ ticker: w.ticker, newRatio: nr }) });
+      closeModal(); toast(`${r.ticker}: ratio ${r.oldRatio}→${r.newRatio}, ${r.holdingsUpdated} tenencias ajustadas`); await loadAll();
+    } catch (e) { toast(e.message); }
+  };
+  modal.classList.remove('hidden');
+}
+
 function openWatchForm(w = null) {
   document.getElementById('modal-title').textContent = w ? `Editar ${w.ticker}` : 'Agregar ticker';
   document.getElementById('modal-body').innerHTML =

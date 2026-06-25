@@ -8,7 +8,7 @@ import {
   migrate,
   listHoldings, addHolding, updateHolding, deleteHolding,
   deleteAllHoldings, addHoldingsBulk,
-  listWatchlist, addWatch, updateWatch, deleteWatch, deleteAllWatch,
+  listWatchlist, addWatch, updateWatch, deleteWatch, deleteAllWatch, applyRatioChange,
   listReports, latestReport, deleteAllReports,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
@@ -126,6 +126,12 @@ app.post('/api/watchlist', wrap(async (req, res) => {
 }));
 app.put('/api/watchlist/:id', wrap(async (req, res) => {
   res.json(await updateWatch(Number(req.params.id), req.body));
+}));
+// Cambio de ratio (split): actualiza catálogo + ajusta tenencias
+app.post('/api/ratio-change', wrap(async (req, res) => {
+  const { ticker, newRatio } = req.body;
+  if (!ticker || !(Number(newRatio) > 0)) return res.status(400).json({ error: 'ticker y newRatio válidos son obligatorios' });
+  res.json(await applyRatioChange(ticker, newRatio));
 }));
 app.delete('/api/watchlist/:id', wrap(async (req, res) => {
   await deleteWatch(Number(req.params.id));

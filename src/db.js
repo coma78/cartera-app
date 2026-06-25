@@ -154,6 +154,31 @@ export async function deleteAllWatch() {
   await query('DELETE FROM watchlist');
 }
 
+// Cambio de ratio (split de CEDEAR): actualiza el ratio del ticker en el
+// catálogo Y ajusta las tenencias multiplicando los nominales por el factor
+// (newRatio/oldRatio). El precio de compra (de la acción) NO cambia, así que
+// el valor y el P&L quedan iguales: solo cambia la cantidad de CEDEARs.
+export async function applyRatioChange(ticker, newRatio) {
+  const sym = ticker.toUpperCase().trim();
+  newRatio = Number(newRatio);
+  if (!(newRatio > 0)) throw new Error('Ratio inválido');
+
+  const { rows: wl } = await query('SELECT ratio FROM watchlist WHERE ticker = $1', [sym]);
+  if (!wl[0]) throw new Error('El ticker no está en el catálogo de tickers');
+  const oldRatio = Number(wl[0].ratio);
+  if (!(oldRatio > 0)) throw new Error('Ratio actual inválido');
+  if (oldRatio === newRatio) return { ticker: sym, oldRatio, newRatio, factor: 1, holdingsUpdated: 0 };
+
+  const factor = newRatio / oldRatio;
+  const { rows: hs } = await query('SELECT id, quantity FROM holdings WHERE ticker = $1', [sym]);
+  for (const h of hs) {
+    const q = Math.round(Number(h.quantity) * factor);
+    await query('UPDATE holdings SET quantity = $2, ratio = $3 WHERE id = $1', [h.id, q, newRatio]);
+  }
+  await query('UPDATE watchlist SET ratio = $2 WHERE ticker = $1', [sym, newRatio]);
+  return { ticker: sym, oldRatio, newRatio, factor, holdingsUpdated: hs.length };
+}
+
 export async function deleteAllReports() {
   await query('DELETE FROM reports');
 }
