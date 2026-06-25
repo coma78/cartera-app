@@ -30,7 +30,7 @@ Por eso alcanza con **una sola plataforma** (Railway): ahí viven la app, la bas
 | App + cron | Railway | crédito de prueba, luego ~centavos–pocos USD/mes |
 | Base de datos | Railway Postgres | incluida en el proyecto |
 | Datos de mercado | Finnhub (gratis) | 60 llamadas/min |
-| Envío de mail | Brevo (gratis) | 300 mails/día |
+| Envío de mail | Resend (gratis, sin teléfono) | 100 mails/día |
 
 ---
 
@@ -68,15 +68,19 @@ Por eso alcanza con **una sola plataforma** (Railway): ahí viven la app, la bas
    - `MARKET_PROVIDER` = `finnhub`
    - `MARKET_API_KEY` = *(tu key de Finnhub)*
 
-### 5. Configurar el envío de mail (Brevo)
-1. Entrá a **brevo.com** → creá cuenta gratis.
-2. Verificá un **remitente**: *Senders, Domains & Dedicated IPs* → *Senders* → agregá y confirmá un email tuyo (te llega un mail de confirmación). Ese será el "de".
-3. Creá una **API key**: menú de tu cuenta → *SMTP & API* → *API Keys* → *Generate a new API key* (v3).
-4. En Railway → app → **Variables**, agregá:
-   - `BREVO_API_KEY` = *(tu API key v3)*
-   - `MAIL_FROM_EMAIL` = *(el remitente verificado)*
+### 5. Configurar el envío de mail (Resend — sin teléfono)
+1. Entrá a **resend.com** → *Sign up* con tu mail (`gascazur@gmail.com`). **No pide SMS.**
+2. En el panel → **API Keys** → *Create API Key* → copiala.
+3. En Railway → app → **Variables**, agregá:
+   - `MAIL_PROVIDER` = `resend`
+   - `RESEND_API_KEY` = *(tu API key)*
+   - `MAIL_FROM_EMAIL` = `onboarding@resend.dev`  *(remitente de prueba, no requiere dominio)*
    - `MAIL_FROM_NAME` = `Cartera Bot`
-   - `MAIL_TO_EMAIL` = `gascazur@gmail.com`
+   - `MAIL_TO_EMAIL` = `gascazur@gmail.com`  *(debe ser el MISMO mail con el que te registraste en Resend)*
+
+> Con el remitente de prueba `onboarding@resend.dev` solo podés enviarte mails **a vos mismo** (el mail de tu cuenta Resend) — que es justo lo que necesitás. Para mandar a otras casillas o personalizar el remitente, más adelante verificás un dominio propio en Resend.
+>
+> **Alternativa Brevo** (si preferís): poné `MAIL_PROVIDER=brevo`, `BREVO_API_KEY`, y un `MAIL_FROM_EMAIL` verificado en Brevo.
 
 ### 6. Ajustar horario del reporte
 En Railway → app → **Variables**:
@@ -106,7 +110,7 @@ Ver `.env.example`. Las obligatorias para producción:
 
 - `DATABASE_URL` (la inyecta Railway por referencia)
 - `MARKET_API_KEY` (+ `MARKET_PROVIDER`)
-- `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `MAIL_TO_EMAIL`
+- `MAIL_PROVIDER`, `RESEND_API_KEY` (o `BREVO_API_KEY`), `MAIL_FROM_EMAIL`, `MAIL_TO_EMAIL`
 
 Sin `MARKET_API_KEY` la app corre en **modo demo** (precios simulados) para que puedas ver la interfaz funcionando.
 
