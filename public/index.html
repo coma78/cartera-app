@@ -16,12 +16,24 @@
   </header>
 
   <main>
-    <!-- Resumen -->
+    <!-- Resumen (se ajusta a los filtros) -->
     <section class="cards" id="summary-cards">
-      <div class="card"><div class="card-label">Valor total</div><div class="card-value" id="s-value">—</div></div>
+      <div class="card"><div class="card-label" id="s-scope">Valor total</div><div class="card-value" id="s-value">—</div></div>
       <div class="card"><div class="card-label">Resultado</div><div class="card-value" id="s-pl">—</div></div>
       <div class="card"><div class="card-label">Rendimiento</div><div class="card-value" id="s-plpct">—</div></div>
-      <div class="card"><div class="card-label">Posiciones</div><div class="card-value" id="s-count">—</div></div>
+      <div class="card"><div class="card-label" id="s-count-label">Posiciones</div><div class="card-value" id="s-count">—</div></div>
+    </section>
+
+    <!-- Catálogo de tickers (lista de deseables) -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Tickers <span class="muted-sm">(lista de deseables)</span></h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="loadSuggestedTickers()">Cargar sugeridos</button>
+          <button class="btn" onclick="openWatchForm()">+ Agregar ticker</button>
+        </div>
+      </div>
+      <div id="watch-table"></div>
     </section>
 
     <!-- Cartera -->
@@ -33,16 +45,46 @@
           <button class="btn" onclick="openHoldingForm()">+ Agregar tenencia</button>
         </div>
       </div>
-      <div id="holdings-table"></div>
-    </section>
 
-    <!-- Watchlist -->
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Tickers de interés</h2>
-        <button class="btn" onclick="openWatchForm()">+ Agregar a seguimiento</button>
+      <!-- Barra de filtros -->
+      <div class="filters" id="filters">
+        <label>Vista
+          <select id="f-view">
+            <option value="lots">Por lotes</option>
+            <option value="consolidated">Consolidado por ticker</option>
+          </select>
+        </label>
+        <label>Tipo
+          <select id="f-type"><option value="">Todos</option><option value="Acción">Acción</option><option value="ETF">ETF</option></select>
+        </label>
+        <label>Ticker
+          <select id="f-ticker"><option value="">Todos</option></select>
+        </label>
+        <label>Año
+          <select id="f-year"><option value="">Todos</option></select>
+        </label>
+        <label>Desde<input type="date" id="f-from"></label>
+        <label>Hasta<input type="date" id="f-to"></label>
+        <label>Resultado
+          <select id="f-pl"><option value="">Todas</option><option value="win">Ganadoras</option><option value="loss">Perdedoras</option></select>
+        </label>
+        <button class="btn" id="f-clear" onclick="clearFilters()">Limpiar</button>
       </div>
-      <div id="watch-table"></div>
+
+      <div id="holdings-table"></div>
+
+      <!-- Paginado -->
+      <div class="pager" id="pager">
+        <span id="pager-info" class="muted-sm"></span>
+        <div class="pager-ctrls">
+          <label class="muted-sm">Por página
+            <select id="f-pagesize"><option>10</option><option selected>25</option><option>50</option><option value="9999">Todas</option></select>
+          </label>
+          <button class="btn" id="prev-page">‹</button>
+          <span id="page-label" class="muted-sm"></span>
+          <button class="btn" id="next-page">›</button>
+        </div>
+      </div>
     </section>
 
     <!-- Reportes -->

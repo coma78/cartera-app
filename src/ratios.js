@@ -31,3 +31,13 @@ export function suggestRatio(ticker) {
   if (!ticker) return 1;
   return CEDEAR_RATIOS[ticker.toUpperCase().trim()] || 1;
 }
+
+// ETFs / indices (el resto se considera "Accion").
+export const CEDEAR_ETFS = new Set([
+  'SPY', 'QQQ', 'EEM', 'EWZ', 'FXI', 'VEA', 'XLV', 'SPXL', 'TQQQ',
+  'DIA', 'IWM', 'EFA', 'ARKK', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV',
+]);
+
+export function tickerType(ticker) {
+  return CEDEAR_ETFS.has((ticker || '').toUpperCase().trim()) ? 'ETF' : 'Acción';
+}

@@ -7,7 +7,7 @@ import {
   migrate,
   listHoldings, addHolding, updateHolding, deleteHolding,
   deleteAllHoldings, addHoldingsBulk,
-  listWatchlist, addWatch, deleteWatch,
+  listWatchlist, addWatch, updateWatch, deleteWatch,
   listReports, latestReport,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
@@ -70,7 +70,15 @@ app.post('/api/holdings/bulk', wrap(async (req, res) => {
   if (!items.length) return res.status(400).json({ error: 'lista vacia' });
   if (req.body?.reset) await deleteAllHoldings();
   const inserted = await addHoldingsBulk(items);
-  res.json({ inserted });
+  // Registrar los tickers en el catalogo (deseables) con su ratio.
+  const seen = new Set();
+  for (const it of items) {
+    const t = (it.ticker || '').toUpperCase().trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    try { await addWatch({ ticker: t, ratio: it.ratio }); } catch (e) { /* noop */ }
+  }
+  res.json({ inserted, tickers: seen.size });
 }));
 
 // ---- Watchlist (ABM) ----
@@ -79,6 +87,9 @@ app.post('/api/watchlist', wrap(async (req, res) => {
   const { ticker, ratio, notes } = req.body;
   if (!ticker) return res.status(400).json({ error: 'ticker es obligatorio' });
   res.json(await addWatch({ ticker, ratio, notes }));
+}));
+app.put('/api/watchlist/:id', wrap(async (req, res) => {
+  res.json(await updateWatch(Number(req.params.id), req.body));
 }));
 app.delete('/api/watchlist/:id', wrap(async (req, res) => {
   await deleteWatch(Number(req.params.id));

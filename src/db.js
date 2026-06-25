@@ -135,6 +135,17 @@ export async function addWatch({ ticker, ratio, notes }) {
   return rows[0];
 }
 
+export async function updateWatch(id, { ratio, notes }) {
+  const { rows } = await query(
+    `UPDATE watchlist
+       SET ratio = COALESCE($2, ratio),
+           notes = COALESCE($3, notes)
+     WHERE id = $1 RETURNING *`,
+    [id, ratio != null ? Number(ratio) : null, notes ?? null]
+  );
+  return rows[0];
+}
+
 export async function deleteWatch(id) {
   await query('DELETE FROM watchlist WHERE id = $1', [id]);
 }

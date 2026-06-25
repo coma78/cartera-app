@@ -1,5 +1,6 @@
 // Calcula metricas objetivas. NO da ordenes de compra/venta:
 // genera observaciones informativas para que la persona decida.
+import { tickerType } from './ratios.js';
 
 function pct(n) {
   return Math.round(n * 100) / 100;
@@ -46,6 +47,7 @@ export function analyzeHolding(holding, quote) {
   return {
     id: holding.id,
     ticker: holding.ticker,
+    type: tickerType(holding.ticker),
     buy_price: buy,
     quantity: qty,
     ratio,
@@ -69,6 +71,7 @@ export function analyzeWatch(watch, quote, news = []) {
   return {
     id: watch.id,
     ticker: watch.ticker,
+    type: tickerType(watch.ticker),
     ratio,
     price: quote.price,                  // accion subyacente
     cedearPrice: pct(quote.price / ratio),
