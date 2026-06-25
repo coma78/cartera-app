@@ -18,6 +18,7 @@ import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn } from './ai.js';
+import { signalsEnabled, getSignals, momentumScore } from './signals.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +53,7 @@ app.get('/api/config', (req, res) => res.json({
   marketKey: providerInfo.hasKey,
   emailConfigured: emailConfigured(),
   aiEnabled: aiEnabled(),
+  signalsEnabled: signalsEnabled(),
   sso: ssoEnabled(),
   user: currentUser(req),
   authRequired: !!APP_TOKEN,
@@ -163,21 +165,37 @@ app.post('/api/suggest', wrap(async (req, res) => {
   if (Array.isArray(include) && include.length) items = items.filter(i => include.includes(i.ticker));
   if (Array.isArray(exclude) && exclude.length) items = items.filter(i => !exclude.includes(i.ticker));
 
-  // Estrategia con IA: Claude puntúa los tickers y el motor usa esos puntajes.
+  // Estrategias con análisis: 'ai' (Claude) o 'momentum' (datos de mercado FMP).
   let strat = strategy;
-  let aiScores = null, aiAnalysis = null, notice = null;
+  let scores = null, aiAnalysis = null, notice = null;
+
   if (strategy === 'ai') {
     if (!aiEnabled()) {
       strat = 'rebalance';
       notice = 'La estrategia con IA necesita ANTHROPIC_API_KEY. Se usó rebalanceo.';
     } else {
-      const sc = await aiScoresFn(items, { risk, note });
-      if (sc && sc.scores) { aiScores = sc.scores; aiAnalysis = sc.rationale; }
+      const sig = await getSignals(items.map(i => i.ticker)); // {} si no hay FMP
+      const sc = await aiScoresFn(items, { risk, note, signals: sig });
+      if (sc && sc.scores) { scores = sc.scores; aiAnalysis = sc.rationale; }
       else { strat = 'rebalance'; notice = 'No se pudo obtener el análisis de IA. Se usó rebalanceo.'; }
+    }
+  } else if (strategy === 'momentum') {
+    if (!signalsEnabled()) {
+      strat = 'rebalance';
+      notice = 'La estrategia de momentum necesita FMP_API_KEY. Se usó rebalanceo.';
+    } else {
+      const sig = await getSignals(items.map(i => i.ticker));
+      if (!Object.keys(sig).length) {
+        strat = 'rebalance';
+        notice = 'No se pudieron obtener datos de mercado (FMP). Se usó rebalanceo.';
+      } else {
+        scores = {};
+        for (const i of items) scores[i.ticker] = momentumScore(sig[i.ticker]);
+      }
     }
   }
 
-  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy: strat, maxPerTicker, maxPerType, maxTickers, aiScores } });
+  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy: strat, maxPerTicker, maxPerType, maxTickers, scores } });
   const rationale = templateRationale(plan);
   // En estrategia IA el "comentario" es el análisis; en las demás, una explicación del plan.
   const ai = aiAnalysis || (strat !== 'ai' ? await aiRationale(plan, note) : null);

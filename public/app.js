@@ -468,7 +468,7 @@ function renderManage() {
 // ---------- SUGERENCIAS ----------
 function renderSugerencias() {
   const badge = document.getElementById('ai-badge');
-  if (badge) badge.textContent = CONFIG.aiEnabled ? '🤖 IA activa' : 'IA no configurada — explicación automática';
+  if (badge) badge.textContent = (CONFIG.aiEnabled ? '🤖 IA activa' : 'IA no configurada') + (CONFIG.signalsEnabled ? ' · 📈 datos FMP' : ' · sin datos FMP');
   const cur = document.getElementById('sg-cur');
   if (cur) cur.textContent = '(' + (CONFIG.currency || 'USD') + ')';
   const cont = document.getElementById('sg-tickers');
