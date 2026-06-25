@@ -1,4 +1,4 @@
-# 📈 Mi Cartera — dashboard + reporte diario por mail
+# 📈 Car te re ar — dashboard + reporte diario por mail
 
 App en la nube para seguir tu cartera de inversiones. Tiene:
 

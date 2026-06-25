@@ -87,7 +87,7 @@ export async function generateReport({ send = true } = {}) {
   let emailResult = { sent: false, reason: 'No solicitado' };
   if (send && emailConfigured()) {
     try {
-      const subject = `Tu cartera hoy — ${fmtPct(summary.totalPlPct)} acumulado`;
+      const subject = `Car te re ar — tu cartera hoy (${fmtPct(summary.totalPlPct)} acumulado)`;
       emailResult = await sendEmail({ subject, html });
     } catch (e) {
       emailResult = { sent: false, reason: e.message };
@@ -149,7 +149,7 @@ function renderHtml({ summary, holdingResults, watchResults, errors, generatedAt
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1c1c1c">
   <div style="max-width:680px;margin:0 auto;padding:20px">
-    <h1 style="font-size:20px;margin:0 0 4px">Reporte diario de tu cartera</h1>
+    <h1 style="font-size:20px;margin:0 0 4px">Car te re ar — reporte diario</h1>
     <p style="color:#777;margin:0 0 16px;font-size:13px">${date}</p>
 
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)">
