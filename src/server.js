@@ -17,7 +17,7 @@ import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
-import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError } from './ai.js';
+import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError, aiModel, listModels } from './ai.js';
 import { signalsEnabled, getSignals, momentumScore, lastSignalError } from './signals.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
@@ -208,6 +208,12 @@ app.get('/api/suggest/diag', wrap(async (_req, res) => {
   if (!signalsEnabled()) return res.json({ enabled: false, msg: 'FMP_API_KEY no está cargada' });
   const sig = await getSignals(['AAPL', 'MSFT']);
   res.json({ enabled: true, count: Object.keys(sig).length, sample: sig.AAPL || null, error: lastSignalError() });
+}));
+
+// ---- Diagnóstico IA (modelos disponibles para tu key) ----
+app.get('/api/suggest/diag-ai', wrap(async (_req, res) => {
+  if (!aiEnabled()) return res.json({ enabled: false, msg: 'ANTHROPIC_API_KEY no está cargada' });
+  res.json({ enabled: true, modeloActual: aiModel(), disponibles: await listModels() });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----

@@ -3,11 +3,30 @@
 // El modelo SOLO explica un plan ya calculado; no cambia los números.
 
 const KEY = process.env.ANTHROPIC_API_KEY || '';
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-latest';
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022';
 let _lastError = null;
 
 export function aiEnabled() { return !!KEY; }
 export function lastAiError() { return _lastError; }
+export function aiModel() { return MODEL; }
+
+// Lista los modelos que la API key puede usar (para diagnóstico).
+export async function listModels() {
+  if (!KEY) return { ok: false, error: 'sin key' };
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/models', {
+      headers: { 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let m = `HTTP ${res.status}`;
+      try { const e = JSON.parse(text); m = `HTTP ${res.status}: ${e.error?.message || ''}`; } catch { /* */ }
+      return { ok: false, error: m };
+    }
+    const d = JSON.parse(text);
+    return { ok: true, models: (d.data || []).map(x => x.id) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
 
 // Llama a la API de Claude y devuelve el texto, o null (guardando el error).
 async function callClaude(prompt, maxTokens = 600) {
