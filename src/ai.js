@@ -3,7 +3,7 @@
 // El modelo SOLO explica un plan ya calculado; no cambia los números.
 
 const KEY = process.env.ANTHROPIC_API_KEY || '';
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022';
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 let _lastError = null;
 
 export function aiEnabled() { return !!KEY; }

@@ -229,12 +229,19 @@ app.post('/api/report/run', wrap(async (req, res) => {
   res.json(await generateReport({ send }));
 }));
 // ---- Settings (toggle de envío de mail diario) ----
-app.get('/api/settings', wrap(async (_req, res) => {
-  res.json({ dailyEmail: (await getSetting('daily_email', 'true')) !== 'false' });
-}));
+async function readSettings() {
+  let suggestTickers = null;
+  try { suggestTickers = JSON.parse(await getSetting('suggest_tickers', 'null')); } catch { suggestTickers = null; }
+  return {
+    dailyEmail: (await getSetting('daily_email', 'true')) !== 'false',
+    suggestTickers,
+  };
+}
+app.get('/api/settings', wrap(async (_req, res) => res.json(await readSettings())));
 app.post('/api/settings', wrap(async (req, res) => {
   if (typeof req.body?.dailyEmail === 'boolean') await setSetting('daily_email', req.body.dailyEmail ? 'true' : 'false');
-  res.json({ dailyEmail: (await getSetting('daily_email', 'true')) !== 'false' });
+  if (Array.isArray(req.body?.suggestTickers)) await setSetting('suggest_tickers', JSON.stringify(req.body.suggestTickers));
+  res.json(await readSettings());
 }));
 
 app.get('/api/reports', wrap(async (_req, res) => res.json(await listReports())));

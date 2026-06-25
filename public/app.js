@@ -475,9 +475,25 @@ function renderSugerencias() {
   const cont = document.getElementById('sg-tickers');
   const existing = cont.querySelectorAll('.sg-tk').length;
   if (!CATALOG.length) cont.innerHTML = '<span class="muted-sm">Cargá tickers primero (sección Tickers).</span>';
-  else if (existing !== CATALOG.length) cont.innerHTML = CATALOG.map(c => `<label class="sg-chk"><input type="checkbox" class="sg-tk" value="${c.ticker}" checked> ${c.ticker}</label>`).join('');
+  else if (existing !== CATALOG.length) {
+    const sel = SETTINGS.suggestTickers;
+    cont.innerHTML = CATALOG.map(c => {
+      const checked = !Array.isArray(sel) || sel.includes(c.ticker);
+      return `<label class="sg-chk"><input type="checkbox" class="sg-tk" value="${c.ticker}" ${checked ? 'checked' : ''}> ${c.ticker}</label>`;
+    }).join('');
+  }
   // Repinta el último resultado (p. ej. al togglear el ojito de montos)
   if (LAST_SUGGEST) renderSuggestResult(LAST_SUGGEST);
+}
+
+let _sgSaveTimer = null;
+function saveSuggestTickers() {
+  const sel = [...document.querySelectorAll('.sg-tk:checked')].map(x => x.value);
+  clearTimeout(_sgSaveTimer);
+  _sgSaveTimer = setTimeout(async () => {
+    try { SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ suggestTickers: sel }) }); }
+    catch (e) { /* noop */ }
+  }, 700);
 }
 
 async function computeSuggest() {
@@ -727,6 +743,7 @@ function bindEvents() {
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('btn-eye').onclick = toggleMoney;
   document.getElementById('sg-go').onclick = computeSuggest;
+  document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('chk-daily-email').addEventListener('change', async function () {
     try {
       SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ dailyEmail: this.checked }) });
