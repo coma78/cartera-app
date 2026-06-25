@@ -10,6 +10,18 @@ App en la nube para seguir tu cartera de inversiones. Tiene:
 
 ---
 
+## CEDEARs y ratios
+
+La app está pensada para **CEDEARs**, no para la acción que cotiza en EEUU. Cada CEDEAR representa una fracción de la acción según un **ratio** (ej. AVGO = 39: hacen falta 39 CEDEARs para 1 acción).
+
+- El precio que se trae es el de la **acción en EEUU**, y la app calcula el **precio por CEDEAR = precio de la acción / ratio**.
+- Tu **precio de compra**, **cantidad** y el **P&L** se miden por CEDEAR, en la misma moneda (USD); pensalo en dólar CCL.
+- Al cargar una tenencia, el **ratio se autocompleta** con una tabla de referencia (`src/ratios.js`) y lo podés editar. Los ratios cambian con el tiempo, así que revisalos.
+- También cargás la **fecha de compra**.
+- Tickers cuyo símbolo difiere del de EEUU se mapean solos (ej. `BRKB` → `BRK.B`).
+
+> Ratios precargados: AVGO 39, BRKB 22, EEM 5, EWZ 2, FXI 5, GOOGL 58, JPM 15, MELI 120, META 25, MSFT 30, NU 2, PFE 4, QQQ 20, SPY 20, SPXL 25, TQQQ 25, VEA 10, XLV 29.
+
 ## Cómo funciona (arquitectura)
 
 Un solo servicio Node (Express) que:

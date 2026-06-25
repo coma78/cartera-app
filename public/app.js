@@ -1,6 +1,7 @@
 // ---------- Estado / helpers ----------
 const TOKEN_KEY = 'cartera_token';
 let CONFIG = {};
+let RATIOS = {};
 
 function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
@@ -53,6 +54,8 @@ function tagsHtml(obs) {
   return '<div class="tags">' + (obs || []).map(o => `<span class="tag">${o.text}</span>`).join('') + '</div>';
 }
 
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString('es-AR') : '—'; }
+
 function renderHoldings(rows) {
   const el = document.getElementById('holdings-table');
   if (!rows.length) { el.innerHTML = '<div class="empty">Todavía no cargaste tenencias. Usá “+ Agregar tenencia”.</div>'; return; }
@@ -60,15 +63,17 @@ function renderHoldings(rows) {
       <th>Ticker</th>
       <th class="num">Compra</th>
       <th class="num">Actual</th>
+      <th class="num hide-sm">Fecha</th>
       <th class="num">Hoy</th>
       <th class="num">P/G</th>
       <th class="num hide-sm">Valor</th>
       <th class="num"></th>
     </tr></thead><tbody>${rows.map(h => `
       <tr>
-        <td><b>${h.ticker}</b>${tagsHtml(h.observations)}</td>
+        <td><b>${h.ticker}</b> <span class="muted-sm">CEDEAR · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
         <td class="num">${money(h.buy_price)}</td>
         <td class="num">${money(h.price)}</td>
+        <td class="num hide-sm">${fmtDate(h.purchase_date)}</td>
         <td class="num ${cls(h.changePct)}">${pctStr(h.changePct)}</td>
         <td class="num ${cls(h.plPct)}"><b>${pctStr(h.plPct)}</b></td>
         <td class="num hide-sm">${h.positionValue !== null ? money(h.positionValue) : '—'}</td>
@@ -86,7 +91,7 @@ function renderWatch(rows) {
       <th>Ticker</th><th class="num">Precio</th><th class="num">Hoy</th><th class="num"></th>
     </tr></thead><tbody>${rows.map(w => `
       <tr>
-        <td><b>${w.ticker}</b>${tagsHtml(w.observations)}</td>
+        <td><b>${w.ticker}</b> <span class="muted-sm">ratio ${w.ratio}</span>${tagsHtml(w.observations)}</td>
         <td class="num">${money(w.price)}</td>
         <td class="num ${cls(w.changePct)}">${pctStr(w.changePct)}</td>
         <td class="num row-actions"><button onclick="delWatch(${w.id})">🗑️</button></td>
@@ -114,17 +119,27 @@ function field(label, id, value = '', type = 'text', ph = '') {
 }
 
 function openHoldingForm(h = null) {
-  document.getElementById('modal-title').textContent = h ? 'Editar tenencia' : 'Nueva tenencia';
+  document.getElementById('modal-title').textContent = h ? 'Editar tenencia' : 'Nueva tenencia (CEDEAR)';
+  const dateVal = h?.purchase_date ? String(h.purchase_date).slice(0, 10) : '';
   document.getElementById('modal-body').innerHTML =
-    field('Ticker (ej. AAPL)', 'ticker', h?.ticker || '', 'text', 'AAPL') +
-    field('Precio de compra', 'buy', h?.buy_price ?? '', 'number', '150.00') +
-    field('Cantidad (opcional)', 'qty', h?.quantity ?? '', 'number', '10') +
+    field('Ticker (ej. AVGO)', 'ticker', h?.ticker || '', 'text', 'AVGO') +
+    field('Precio de compra (por CEDEAR)', 'buy', h?.buy_price ?? '', 'number', '12.50') +
+    field('Cantidad de CEDEARs', 'qty', h?.quantity ?? '', 'number', '39') +
+    field('Ratio (CEDEARs por acción)', 'ratio', h?.ratio ?? '', 'number', '39') +
+    field('Fecha de compra', 'pdate', dateVal, 'date') +
     field('Notas (opcional)', 'notes', h?.notes || '');
+  // Autocompletar el ratio segun el ticker (solo si el campo esta vacio).
+  const tEl = document.getElementById('f-ticker');
+  const rEl = document.getElementById('f-ratio');
+  const fill = () => { const s = RATIOS[tEl.value.toUpperCase().trim()]; if (s && !rEl.value) rEl.value = s; };
+  tEl.addEventListener('input', fill); tEl.addEventListener('blur', fill);
   document.getElementById('modal-save').onclick = async () => {
     const body = {
-      ticker: document.getElementById('f-ticker').value.trim(),
+      ticker: tEl.value.trim(),
       buy_price: parseFloat(document.getElementById('f-buy').value),
       quantity: parseFloat(document.getElementById('f-qty').value) || 0,
+      ratio: parseFloat(rEl.value) || null,
+      purchase_date: document.getElementById('f-pdate').value || null,
       notes: document.getElementById('f-notes').value,
     };
     if (!body.ticker || isNaN(body.buy_price)) return toast('Ticker y precio son obligatorios');
@@ -141,9 +156,18 @@ function openWatchForm() {
   document.getElementById('modal-title').textContent = 'Agregar a seguimiento';
   document.getElementById('modal-body').innerHTML =
     field('Ticker (ej. NVDA)', 'wticker', '', 'text', 'NVDA') +
+    field('Ratio CEDEAR (opcional)', 'wratio', '', 'number', '1') +
     field('Notas (opcional)', 'wnotes', '');
+  const tEl = document.getElementById('f-wticker');
+  const rEl = document.getElementById('f-wratio');
+  const fill = () => { const s = RATIOS[tEl.value.toUpperCase().trim()]; if (s && !rEl.value) rEl.value = s; };
+  tEl.addEventListener('input', fill); tEl.addEventListener('blur', fill);
   document.getElementById('modal-save').onclick = async () => {
-    const body = { ticker: document.getElementById('f-wticker').value.trim(), notes: document.getElementById('f-wnotes').value };
+    const body = {
+      ticker: tEl.value.trim(),
+      ratio: parseFloat(rEl.value) || null,
+      notes: document.getElementById('f-wnotes').value,
+    };
     if (!body.ticker) return toast('El ticker es obligatorio');
     try { await api('/watchlist', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Agregado'); loadDashboard(); }
     catch (e) { toast(e.message); }
@@ -188,6 +212,7 @@ document.getElementById('btn-run').onclick = async function () {
 // ---------- Init ----------
 (async function init() {
   await loadConfig();
+  try { RATIOS = await api('/ratios'); } catch (e) { RATIOS = {}; }
   await loadDashboard();
   await loadReports();
 })();

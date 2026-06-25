@@ -12,6 +12,7 @@ import {
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
+import { CEDEAR_RATIOS } from './ratios.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -45,12 +46,15 @@ app.get('/api/config', (_req, res) => res.json({
   tz: process.env.TZ || 'UTC',
 }));
 
+// ---- Ratios CEDEAR sugeridos ----
+app.get('/api/ratios', (_req, res) => res.json(CEDEAR_RATIOS));
+
 // ---- Holdings (ABM) ----
 app.get('/api/holdings', wrap(async (_req, res) => res.json(await listHoldings())));
 app.post('/api/holdings', wrap(async (req, res) => {
-  const { ticker, buy_price, quantity, notes } = req.body;
+  const { ticker, buy_price, quantity, ratio, purchase_date, notes } = req.body;
   if (!ticker || buy_price == null) return res.status(400).json({ error: 'ticker y buy_price son obligatorios' });
-  res.json(await addHolding({ ticker, buy_price, quantity, notes }));
+  res.json(await addHolding({ ticker, buy_price, quantity, ratio, purchase_date, notes }));
 }));
 app.put('/api/holdings/:id', wrap(async (req, res) => {
   res.json(await updateHolding(Number(req.params.id), req.body));
@@ -63,9 +67,9 @@ app.delete('/api/holdings/:id', wrap(async (req, res) => {
 // ---- Watchlist (ABM) ----
 app.get('/api/watchlist', wrap(async (_req, res) => res.json(await listWatchlist())));
 app.post('/api/watchlist', wrap(async (req, res) => {
-  const { ticker, notes } = req.body;
+  const { ticker, ratio, notes } = req.body;
   if (!ticker) return res.status(400).json({ error: 'ticker es obligatorio' });
-  res.json(await addWatch({ ticker, notes }));
+  res.json(await addWatch({ ticker, ratio, notes }));
 }));
 app.delete('/api/watchlist/:id', wrap(async (req, res) => {
   await deleteWatch(Number(req.params.id));

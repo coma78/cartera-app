@@ -4,6 +4,15 @@
 const PROVIDER = (process.env.MARKET_PROVIDER || 'finnhub').toLowerCase();
 const KEY = process.env.MARKET_API_KEY || '';
 
+// Algunos tickers de CEDEAR difieren del simbolo en el mercado de EEUU.
+const SYMBOL_ALIASES = {
+  BRKB: 'BRK.B',
+};
+
+function marketSymbol(symbol) {
+  return SYMBOL_ALIASES[symbol] || symbol;
+}
+
 function ymd(d) {
   return d.toISOString().slice(0, 10);
 }
@@ -101,13 +110,17 @@ async function fmpNews(symbol) {
 // ---------- API publica ----------
 export async function getQuote(symbol) {
   symbol = symbol.toUpperCase().trim();
-  if (PROVIDER === 'mock' || !KEY) return mockQuote(symbol);
-  if (PROVIDER === 'fmp') return fmpQuote(symbol);
-  return finnhubQuote(symbol);
+  const mkt = marketSymbol(symbol);
+  let q;
+  if (PROVIDER === 'mock' || !KEY) q = mockQuote(mkt);
+  else if (PROVIDER === 'fmp') q = await fmpQuote(mkt);
+  else q = await finnhubQuote(mkt);
+  q.symbol = symbol; // devolvemos el ticker tal como lo cargo el usuario
+  return q;
 }
 
 export async function getNews(symbol) {
-  symbol = symbol.toUpperCase().trim();
+  symbol = marketSymbol(symbol.toUpperCase().trim());
   try {
     if (PROVIDER === 'mock' || !KEY) return [];
     if (PROVIDER === 'fmp') return fmpNews(symbol);

@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { suggestRatio } from './ratios.js';
 
 const { Pool } = pg;
 
@@ -26,12 +27,14 @@ export function query(text, params) {
 export async function migrate() {
   await query(`
     CREATE TABLE IF NOT EXISTS holdings (
-      id          SERIAL PRIMARY KEY,
-      ticker      TEXT NOT NULL,
-      buy_price   NUMERIC NOT NULL,
-      quantity    NUMERIC NOT NULL DEFAULT 0,
-      notes       TEXT DEFAULT '',
-      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      id            SERIAL PRIMARY KEY,
+      ticker        TEXT NOT NULL,
+      buy_price     NUMERIC NOT NULL,
+      quantity      NUMERIC NOT NULL DEFAULT 0,
+      ratio         NUMERIC NOT NULL DEFAULT 1,
+      purchase_date DATE,
+      notes         TEXT DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 
@@ -39,10 +42,16 @@ export async function migrate() {
     CREATE TABLE IF NOT EXISTS watchlist (
       id          SERIAL PRIMARY KEY,
       ticker      TEXT NOT NULL UNIQUE,
+      ratio       NUMERIC NOT NULL DEFAULT 1,
       notes       TEXT DEFAULT '',
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+
+  // Migraciones idempotentes para bases ya creadas (deploys existentes).
+  await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
+  await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date DATE;`);
+  await query(`ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS reports (
@@ -63,24 +72,28 @@ export async function listHoldings() {
   return rows;
 }
 
-export async function addHolding({ ticker, buy_price, quantity, notes }) {
+export async function addHolding({ ticker, buy_price, quantity, ratio, purchase_date, notes }) {
+  const sym = ticker.toUpperCase().trim();
+  const r = ratio && Number(ratio) > 0 ? Number(ratio) : suggestRatio(sym);
   const { rows } = await query(
-    `INSERT INTO holdings (ticker, buy_price, quantity, notes)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [ticker.toUpperCase().trim(), buy_price, quantity || 0, notes || '']
+    `INSERT INTO holdings (ticker, buy_price, quantity, ratio, purchase_date, notes)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [sym, buy_price, quantity || 0, r, purchase_date || null, notes || '']
   );
   return rows[0];
 }
 
-export async function updateHolding(id, { ticker, buy_price, quantity, notes }) {
+export async function updateHolding(id, { ticker, buy_price, quantity, ratio, purchase_date, notes }) {
   const { rows } = await query(
     `UPDATE holdings
        SET ticker = COALESCE($2, ticker),
            buy_price = COALESCE($3, buy_price),
            quantity = COALESCE($4, quantity),
-           notes = COALESCE($5, notes)
+           ratio = COALESCE($5, ratio),
+           purchase_date = COALESCE($6, purchase_date),
+           notes = COALESCE($7, notes)
      WHERE id = $1 RETURNING *`,
-    [id, ticker ? ticker.toUpperCase().trim() : null, buy_price, quantity, notes]
+    [id, ticker ? ticker.toUpperCase().trim() : null, buy_price, quantity, ratio, purchase_date || null, notes]
   );
   return rows[0];
 }
@@ -95,12 +108,14 @@ export async function listWatchlist() {
   return rows;
 }
 
-export async function addWatch({ ticker, notes }) {
+export async function addWatch({ ticker, ratio, notes }) {
+  const sym = ticker.toUpperCase().trim();
+  const r = ratio && Number(ratio) > 0 ? Number(ratio) : suggestRatio(sym);
   const { rows } = await query(
-    `INSERT INTO watchlist (ticker, notes) VALUES ($1, $2)
-     ON CONFLICT (ticker) DO UPDATE SET notes = EXCLUDED.notes
+    `INSERT INTO watchlist (ticker, ratio, notes) VALUES ($1, $2, $3)
+     ON CONFLICT (ticker) DO UPDATE SET notes = EXCLUDED.notes, ratio = EXCLUDED.ratio
      RETURNING *`,
-    [ticker.toUpperCase().trim(), notes || '']
+    [sym, r, notes || '']
   );
   return rows[0];
 }
