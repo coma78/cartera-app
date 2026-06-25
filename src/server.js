@@ -18,7 +18,7 @@ import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn } from './ai.js';
-import { signalsEnabled, getSignals, momentumScore } from './signals.js';
+import { signalsEnabled, getSignals, momentumScore, lastSignalError } from './signals.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -187,7 +187,8 @@ app.post('/api/suggest', wrap(async (req, res) => {
       const sig = await getSignals(items.map(i => i.ticker));
       if (!Object.keys(sig).length) {
         strat = 'rebalance';
-        notice = 'No se pudieron obtener datos de mercado (FMP). Se usó rebalanceo.';
+        const err = lastSignalError();
+        notice = 'No se pudieron obtener datos de mercado (FMP)' + (err ? ` — ${err}` : '') + '. Se usó rebalanceo.';
       } else {
         scores = {};
         for (const i of items) scores[i.ticker] = momentumScore(sig[i.ticker]);
@@ -200,6 +201,13 @@ app.post('/api/suggest', wrap(async (req, res) => {
   // En estrategia IA el "comentario" es el análisis; en las demás, una explicación del plan.
   const ai = aiAnalysis || (strat !== 'ai' ? await aiRationale(plan, note) : null);
   res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled(), notice });
+}));
+
+// ---- Diagnóstico FMP ----
+app.get('/api/suggest/diag', wrap(async (_req, res) => {
+  if (!signalsEnabled()) return res.json({ enabled: false, msg: 'FMP_API_KEY no está cargada' });
+  const sig = await getSignals(['AAPL', 'MSFT']);
+  res.json({ enabled: true, count: Object.keys(sig).length, sample: sig.AAPL || null, error: lastSignalError() });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----
