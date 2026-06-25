@@ -77,17 +77,28 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
   const capT = (Number(prefs.maxPerTicker) > 0 ? Number(prefs.maxPerTicker) : (risk === 'conservador' ? 15 : risk === 'agresivo' ? 40 : 25)) / 100;
   const capType = (Number(prefs.maxPerType) > 0 ? Number(prefs.maxPerType) : (risk === 'conservador' ? 70 : 100)) / 100;
 
+  // Peso de preferencia por ticker (riesgo × estrategia)
+  const pwAll = {};
+  for (const i of elig) pwAll[i.ticker] = riskFactor(i.type, i.ticker, risk) * strategyWeight(i.plPct, strategy);
+
+  // Límite de cantidad de tickers: nos quedamos con los más alineados
+  let eligUse = elig;
+  const maxN = Number(prefs.maxTickers);
+  if (maxN > 0 && maxN < elig.length) {
+    eligUse = [...elig].sort((a, b) => pwAll[b.ticker] - pwAll[a.ticker]).slice(0, maxN);
+  }
+
   const typeOf = {};
   const priceOf = {};   // precio por CEDEAR
   const curVal = {};
   let V = 0;
   const pw = {};
-  for (const i of elig) {
+  for (const i of eligUse) {
     typeOf[i.ticker] = i.type;
     priceOf[i.ticker] = i.price / i.ratio;
     curVal[i.ticker] = Number(i.currentValue) || 0;
     V += curVal[i.ticker];
-    pw[i.ticker] = riskFactor(i.type, i.ticker, risk) * strategyWeight(i.plPct, strategy);
+    pw[i.ticker] = pwAll[i.ticker];
   }
 
   // Topes "factibles": con pocos tickers/tipos, un tope muy bajo no puede
@@ -116,7 +127,7 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
   // Convertir a CEDEARs (enteros)
   const rows = [];
   let used = 0;
-  for (const i of elig) {
+  for (const i of eligUse) {
     const t = i.ticker;
     const buyMoney = desired[t] * factor;
     const cedears = Math.floor(buyMoney / priceOf[t]);

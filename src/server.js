@@ -144,7 +144,7 @@ app.delete('/api/watchlist/:id', wrap(async (req, res) => {
 
 // ---- Sugerencias de inversión (motor de reglas + IA opcional) ----
 app.post('/api/suggest', wrap(async (req, res) => {
-  const { amount, risk, strategy, maxPerTicker, maxPerType, include, exclude, note } = req.body || {};
+  const { amount, risk, strategy, maxPerTicker, maxPerType, maxTickers, include, exclude, note } = req.body || {};
   const { summary } = await buildReport({ withNews: false });
 
   // Valor y P/G acumulado por ticker (de lo que ya tenés)
@@ -163,7 +163,7 @@ app.post('/api/suggest', wrap(async (req, res) => {
   if (Array.isArray(include) && include.length) items = items.filter(i => include.includes(i.ticker));
   if (Array.isArray(exclude) && exclude.length) items = items.filter(i => !exclude.includes(i.ticker));
 
-  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy, maxPerTicker, maxPerType } });
+  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy, maxPerTicker, maxPerType, maxTickers } });
   const rationale = templateRationale(plan);
   const ai = await aiRationale(plan, note);
   res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled() });

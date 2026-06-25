@@ -149,7 +149,7 @@
             <span class="muted-sm" id="ai-badge"></span>
           </div>
           <div class="filters">
-            <label>Monto a invertir<input type="number" id="sg-amount" placeholder="50000" min="0" step="any"></label>
+            <label>Monto a invertir <span id="sg-cur" class="muted-sm"></span><input type="number" id="sg-amount" placeholder="50000" min="0" step="any"></label>
             <label>Perfil de riesgo
               <select id="sg-risk"><option value="conservador">Conservador</option><option value="moderado" selected>Moderado</option><option value="agresivo">Agresivo</option></select>
             </label>
@@ -163,6 +163,7 @@
             </label>
             <label>Máx % por ticker<input type="number" id="sg-maxticker" placeholder="auto" min="0" max="100"></label>
             <label>Máx % por tipo<input type="number" id="sg-maxtype" placeholder="auto" min="0" max="100"></label>
+            <label>Máx. de tickers<input type="number" id="sg-maxn" placeholder="todos" min="1" step="1"></label>
             <button class="btn primary" id="sg-go">Calcular</button>
           </div>
           <details class="sg-details">

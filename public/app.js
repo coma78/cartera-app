@@ -469,6 +469,8 @@ function renderManage() {
 function renderSugerencias() {
   const badge = document.getElementById('ai-badge');
   if (badge) badge.textContent = CONFIG.aiEnabled ? '🤖 IA activa' : 'IA no configurada — explicación automática';
+  const cur = document.getElementById('sg-cur');
+  if (cur) cur.textContent = '(' + (CONFIG.currency || 'USD') + ')';
   const cont = document.getElementById('sg-tickers');
   if (!CATALOG.length) cont.innerHTML = '<span class="muted-sm">Cargá tickers primero (sección Tickers).</span>';
   else cont.innerHTML = CATALOG.map(c => `<label class="sg-chk"><input type="checkbox" class="sg-tk" value="${c.ticker}" checked> ${c.ticker}</label>`).join('');
@@ -485,6 +487,7 @@ async function computeSuggest() {
     strategy: document.getElementById('sg-strategy').value,
     maxPerTicker: parseFloat(document.getElementById('sg-maxticker').value) || null,
     maxPerType: parseFloat(document.getElementById('sg-maxtype').value) || null,
+    maxTickers: parseInt(document.getElementById('sg-maxn').value, 10) || null,
     include,
     note: document.getElementById('sg-note').value,
   };
