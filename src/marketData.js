@@ -123,8 +123,8 @@ export async function getNews(symbol) {
   symbol = marketSymbol(symbol.toUpperCase().trim());
   try {
     if (PROVIDER === 'mock' || !KEY) return [];
-    if (PROVIDER === 'fmp') return fmpNews(symbol);
-    return finnhubNews(symbol);
+    if (PROVIDER === 'fmp') return await fmpNews(symbol);
+    return await finnhubNews(symbol);
   } catch (e) {
     console.warn(`[market] noticias ${symbol}:`, e.message);
     return [];

@@ -58,9 +58,9 @@ export async function buildReport({ withNews = false, maxAgeMs = 60000 } = {}) {
   // Noticias sólo si se piden (mail), en paralelo y por ticker único.
   const newsMap = new Map();
   if (withNews) {
+    // De a una (no en ráfaga) para no pasar el límite de pedidos de la API.
     const wts = [...new Set(watch.map(w => w.ticker.toUpperCase().trim()))];
-    const ns = await Promise.all(wts.map(t => getNews(t)));
-    wts.forEach((t, i) => newsMap.set(t, ns[i]));
+    for (const t of wts) newsMap.set(t, await getNews(t));
   }
 
   const watchResults = [];
