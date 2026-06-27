@@ -190,6 +190,10 @@ export async function deleteAllReports() {
   await query('DELETE FROM reports');
 }
 
+export async function deleteReport(id) {
+  await query('DELETE FROM reports WHERE id = $1', [id]);
+}
+
 // ---------- Reports ----------
 export async function saveReport({ summary, html, emailed }) {
   const { rows } = await query(

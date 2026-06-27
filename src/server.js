@@ -9,7 +9,7 @@ import {
   listHoldings, addHolding, updateHolding, deleteHolding,
   deleteAllHoldings, addHoldingsBulk,
   listWatchlist, addWatch, updateWatch, deleteWatch, deleteAllWatch, applyRatioChange,
-  listReports, latestReport, deleteAllReports,
+  listReports, latestReport, deleteAllReports, deleteReport,
   getSetting, setSetting,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
@@ -245,6 +245,10 @@ app.post('/api/settings', wrap(async (req, res) => {
 }));
 
 app.get('/api/reports', wrap(async (_req, res) => res.json(await listReports())));
+app.delete('/api/reports/:id', wrap(async (req, res) => {
+  await deleteReport(Number(req.params.id));
+  res.json({ ok: true });
+}));
 app.get('/api/reports/latest', wrap(async (_req, res) => {
   const r = await latestReport();
   if (!r) return res.status(404).send('Sin reportes todavia');

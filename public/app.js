@@ -552,12 +552,13 @@ function renderSuggestResult(data) {
 function renderReportsList() {
   const el = document.getElementById('reports-list');
   if (!REPORTS.length) { el.innerHTML = '<div class="empty">Todavía no se generó ningún reporte.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Fecha</th><th class="num">Valor</th><th class="num">Rendimiento</th><th class="num">Mail</th></tr></thead><tbody>${REPORTS.map(r => `
+  el.innerHTML = `<table><thead><tr><th>Fecha</th><th class="num">Valor</th><th class="num">Rendimiento</th><th class="num">Mail</th><th class="num"></th></tr></thead><tbody>${REPORTS.map(r => `
     <tr>
       <td>${new Date(r.created_at).toLocaleString('es-AR')}</td>
       <td class="num">${money(r.summary?.totalValue)}</td>
       <td class="num ${cls(r.summary?.totalPlPct)}">${pctStr(r.summary?.totalPlPct)}</td>
       <td class="num">${r.emailed ? '✉️ enviado' : '—'}</td>
+      <td class="num row-actions"><button title="Borrar" onclick="delReport(${r.id})">🗑️</button></td>
     </tr>`).join('')}</tbody></table>`;
 }
 
@@ -713,6 +714,12 @@ async function resetDb() {
   try { await api('/admin/reset', { method: 'POST', body: '{}' }); toast('Base limpia'); await loadAll(); }
   catch (e) { toast(e.message); }
 }
+async function delReport(id) {
+  if (!confirm('¿Borrar este reporte?')) return;
+  try { await api('/reports/' + id, { method: 'DELETE' }); toast('Reporte borrado'); await loadReports(); renderReportsList(); }
+  catch (e) { toast(e.message); }
+}
+
 async function delHolding(id) {
   if (!confirm('¿Eliminar esta tenencia?')) return;
   await api('/holdings/' + id, { method: 'DELETE' }); toast('Eliminada'); await loadAll();
