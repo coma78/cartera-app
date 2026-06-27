@@ -564,6 +564,14 @@ function saveSuggestTickers() {
   }, 700);
 }
 
+async function seedDemoSeries() {
+  if (!confirm('¿Cargar series de PRUEBA (sintéticas) para ver los indicadores sin FMP? Se reemplazan por datos reales cuando FMP tenga cupo.')) return;
+  try {
+    const r = await api('/admin/seed-series-demo', { method: 'POST', body: '{}' });
+    toast(`Cargadas ${r.seeded} series de prueba. Ahora tocá Calcular.`);
+  } catch (e) { toast(e.message); }
+}
+
 async function computeSuggest() {
   const amount = parseFloat(document.getElementById('sg-amount').value);
   if (!(amount > 0)) return toast('Ingresá un monto válido');
@@ -851,6 +859,7 @@ function bindEvents() {
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('btn-eye').onclick = toggleMoney;
   document.getElementById('sg-go').onclick = computeSuggest;
+  document.getElementById('sg-demo').onclick = seedDemoSeries;
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('sv-go').onclick = registerSale;

@@ -12,6 +12,7 @@ import {
   listReports, latestReport, deleteAllReports, deleteReport,
   getSetting, setSetting,
   listSales, sellFromLot, deleteSaleRestore,
+  saveSeries,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
@@ -210,6 +211,28 @@ app.post('/api/suggest', wrap(async (req, res) => {
   const ai = aiAnalysis || (strat !== 'ai' ? await aiRationale(plan, note) : null);
   const techInfo = { enabled: signalsEnabled(), count: Object.keys(technicals).length, error: lastSignalError() };
   res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled(), notice, techInfo });
+}));
+
+// ---- Datos de prueba (series sintéticas) para probar sin FMP ----
+function demoSeries(ticker) {
+  let seed = [...ticker].reduce((a, c) => a + c.charCodeAt(0), 0) + 7;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  let price = 40 + (seed % 260);
+  const out = [];
+  const today = new Date();
+  for (let i = 260; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    const dow = d.getDay(); if (dow === 0 || dow === 6) continue;
+    price = Math.max(1, price * (1 + (rnd() - 0.47) * 0.03)); // leve sesgo alcista
+    out.push({ date: d.toISOString().slice(0, 10), close: Math.round(price * 100) / 100 });
+  }
+  return out;
+}
+app.post('/api/admin/seed-series-demo', wrap(async (_req, res) => {
+  const cat = await listWatchlist();
+  let n = 0;
+  for (const w of cat) { await saveSeries(w.ticker, demoSeries(w.ticker)); n++; }
+  res.json({ seeded: n });
 }));
 
 // ---- Diagnóstico FMP ----

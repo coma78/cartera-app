@@ -173,7 +173,10 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Sugerencias de inversión</h2>
-            <span class="muted-sm" id="ai-badge"></span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="muted-sm" id="ai-badge"></span>
+              <button class="btn" id="sg-demo" title="Carga series sintéticas para probar los indicadores sin depender de FMP">Datos de prueba</button>
+            </div>
           </div>
           <div class="filters">
             <label>Monto a invertir <span id="sg-cur" class="muted-sm"></span><input type="number" id="sg-amount" placeholder="50000" min="0" step="any"></label>
