@@ -3,6 +3,8 @@
 // Intenta dos endpoints (por compatibilidad con el plan gratuito) y guarda
 // un diagnóstico del último error para mostrarlo si falla.
 
+import { getStoredSeries, saveSeries } from './db.js';
+
 const FMP_KEY = process.env.FMP_API_KEY || '';
 const TTL = 6 * 3600 * 1000; // 6 horas
 const _cache = new Map();     // ticker -> { ts, sig }
@@ -56,11 +58,26 @@ export async function getSignals(tickers) {
   return out;
 }
 
-// Serie histórica de cierres por ticker. Cacheada (12 h) y con las llamadas
-// espaciadas, para no saturar el límite de FMP al reconstruir varias veces.
-const _hist = new Map();            // ticker -> { ts, series }
-const HIST_TTL = 12 * 3600 * 1000;
+// Serie histórica de cierres por ticker, con cache persistente en la base.
+// - Si hay copia guardada de menos de ~20 h, la usa (no pega a FMP).
+// - Si no, intenta FMP, guarda en la base, y la usa.
+// - Si FMP no tiene cupo, cae a la última copia guardada (stale) si existe.
+const _hist = new Map();              // L1 en memoria
+const L1_TTL = 60 * 60 * 1000;        // 1 h
+const STORE_TTL = 20 * 60 * 60 * 1000; // 20 h (refresca ~1 vez por día)
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function fetchSeriesFromFmp(t) {
+  const sym = ALIAS[t] || t;
+  const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&apikey=${FMP_KEY}`);
+  if (!r.ok) { _lastError = r.error; return null; }
+  const arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
+  const ser = (arr || [])
+    .map(h => ({ date: String(h.date).slice(0, 10), close: Number(h.price ?? h.close ?? h.adjClose) }))
+    .filter(x => Number.isFinite(x.close))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return ser.length ? ser : null;
+}
 
 export async function getHistory(tickers) {
   if (!FMP_KEY) return {};
@@ -68,21 +85,30 @@ export async function getHistory(tickers) {
   const uniq = [...new Set((tickers || []).map(x => x.toUpperCase().trim()).filter(Boolean))];
   for (const t of uniq) {
     const c = _hist.get(t);
-    if (c && Date.now() - c.ts < HIST_TTL) { out[t] = c.series; continue; }
-    const sym = ALIAS[t] || t;
-    try {
-      // Misma llamada que el momentum (sin rango), que ya funciona en el plan free.
-      const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&apikey=${FMP_KEY}`);
-      if (r.ok) {
-        let arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
-        const ser = (arr || [])
-          .map(h => ({ date: String(h.date).slice(0, 10), close: Number(h.price ?? h.close ?? h.adjClose) }))
-          .filter(x => Number.isFinite(x.close))
-          .sort((a, b) => a.date.localeCompare(b.date));
-        if (ser.length) { _hist.set(t, { ts: Date.now(), series: ser }); out[t] = ser; }
-      } else { _lastError = r.error; }
-    } catch (e) { _lastError = e.message; }
-    await sleep(300); // espaciar para no pegarle al límite
+    if (c && Date.now() - c.ts < L1_TTL) { out[t] = c.series; continue; }
+
+    // L2: copia en la base
+    const stored = await getStoredSeries(t);
+    const storedAge = stored ? (Date.now() - new Date(stored.updated_at).getTime()) : Infinity;
+    if (stored && storedAge < STORE_TTL) {
+      _hist.set(t, { ts: Date.now(), series: stored.series });
+      out[t] = stored.series;
+      continue;
+    }
+
+    // Hay que pedir a FMP
+    let ser = null;
+    try { ser = await fetchSeriesFromFmp(t); } catch (e) { _lastError = e.message; }
+    if (ser) {
+      try { await saveSeries(t, ser); } catch (e) { /* noop */ }
+      _hist.set(t, { ts: Date.now(), series: ser });
+      out[t] = ser;
+    } else if (stored) {
+      // FMP sin cupo -> uso la copia vieja, mejor que nada
+      _hist.set(t, { ts: Date.now(), series: stored.series });
+      out[t] = stored.series;
+    }
+    await sleep(300);
   }
   return out;
 }

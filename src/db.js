@@ -56,6 +56,14 @@ export async function migrate() {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS price_series (
+      ticker     TEXT PRIMARY KEY,
+      series     JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS sales (
       id            SERIAL PRIMARY KEY,
       holding_id    INTEGER,
@@ -234,6 +242,19 @@ export async function saveReport({ summary, html, emailed }) {
 export async function latestReport() {
   const { rows } = await query('SELECT * FROM reports ORDER BY created_at DESC LIMIT 1');
   return rows[0] || null;
+}
+
+// ---------- Cache de series de precios ----------
+export async function getStoredSeries(ticker) {
+  const { rows } = await query('SELECT series, updated_at FROM price_series WHERE ticker = $1', [ticker.toUpperCase().trim()]);
+  return rows[0] || null;
+}
+export async function saveSeries(ticker, series) {
+  await query(
+    `INSERT INTO price_series (ticker, series, updated_at) VALUES ($1, $2, now())
+     ON CONFLICT (ticker) DO UPDATE SET series = EXCLUDED.series, updated_at = now()`,
+    [ticker.toUpperCase().trim(), JSON.stringify(series)]
+  );
 }
 
 // ---------- Sales (ventas) ----------
