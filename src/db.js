@@ -194,6 +194,19 @@ export async function deleteReport(id) {
   await query('DELETE FROM reports WHERE id = $1', [id]);
 }
 
+// Inserta un reporte con fecha explícita (para reconstrucción histórica).
+export async function insertReportAt(createdAt, summary) {
+  await query(
+    'INSERT INTO reports (created_at, summary, html, emailed) VALUES ($1, $2, $3, $4)',
+    [createdAt, summary, '', false]
+  );
+}
+
+// Borra los snapshots reconstruidos (marcados) para poder rehacerlos sin duplicar.
+export async function deleteReconstructedReports() {
+  await query(`DELETE FROM reports WHERE (summary->>'reconstructed') = 'true'`);
+}
+
 // ---------- Reports ----------
 export async function saveReport({ summary, html, emailed }) {
   const { rows } = await query(
@@ -221,7 +234,7 @@ export async function setSetting(key, value) {
   );
 }
 
-export async function listReports(limit = 30) {
+export async function listReports(limit = 500) {
   const { rows } = await query(
     'SELECT id, created_at, summary, emailed FROM reports ORDER BY created_at DESC LIMIT $1',
     [limit]

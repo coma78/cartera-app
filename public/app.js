@@ -552,14 +552,16 @@ function renderSuggestResult(data) {
 function renderReportsList() {
   const el = document.getElementById('reports-list');
   if (!REPORTS.length) { el.innerHTML = '<div class="empty">Todavía no se generó ningún reporte.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Fecha</th><th class="num">Valor</th><th class="num">Rendimiento</th><th class="num">Mail</th><th class="num"></th></tr></thead><tbody>${REPORTS.map(r => `
+  const shown = REPORTS.slice(0, 60);
+  const moreNote = REPORTS.length > shown.length ? `<div class="muted-sm" style="margin-top:6px">Mostrando 60 de ${REPORTS.length}. El gráfico de evolución usa todos.</div>` : '';
+  el.innerHTML = `<table><thead><tr><th>Fecha</th><th class="num">Valor</th><th class="num">Rendimiento</th><th class="num">Mail</th><th class="num"></th></tr></thead><tbody>${shown.map(r => `
     <tr>
       <td>${new Date(r.created_at).toLocaleString('es-AR')}</td>
       <td class="num">${money(r.summary?.totalValue)}</td>
       <td class="num ${cls(r.summary?.totalPlPct)}">${pctStr(r.summary?.totalPlPct)}</td>
       <td class="num">${r.emailed ? '✉️ enviado' : '—'}</td>
       <td class="num row-actions"><button title="Borrar" onclick="delReport(${r.id})">🗑️</button></td>
-    </tr>`).join('')}</tbody></table>`;
+    </tr>`).join('')}</tbody></table>${moreNote}`;
 }
 
 // ---------- Modal ----------
@@ -714,6 +716,20 @@ async function resetDb() {
   try { await api('/admin/reset', { method: 'POST', body: '{}' }); toast('Base limpia'); await loadAll(); }
   catch (e) { toast(e.message); }
 }
+async function runBackfill() {
+  const from = document.getElementById('bf-from').value;
+  if (!from) return toast('Elegí una fecha "desde"');
+  const granularity = document.getElementById('bf-gran').value;
+  if (!confirm(`Reconstruir el histórico desde ${from} (${granularity})? Reemplaza los snapshots reconstruidos previos.`)) return;
+  const b = document.getElementById('bf-go'); b.disabled = true; b.textContent = 'Reconstruyendo…';
+  try {
+    const r = await api('/admin/backfill', { method: 'POST', body: JSON.stringify({ from, granularity }) });
+    toast(`Reconstruidos ${r.inserted} puntos (${r.tickers} tickers)`);
+    await loadReports(); renderSection(CURRENT_SEC);
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = 'Reconstruir histórico';
+}
+
 async function delReport(id) {
   if (!confirm('¿Borrar este reporte?')) return;
   try { await api('/reports/' + id, { method: 'DELETE' }); toast('Reporte borrado'); await loadReports(); renderReportsList(); }
@@ -751,6 +767,7 @@ function bindEvents() {
   document.getElementById('btn-eye').onclick = toggleMoney;
   document.getElementById('sg-go').onclick = computeSuggest;
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
+  document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('chk-daily-email').addEventListener('change', async function () {
     try {
       SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ dailyEmail: this.checked }) });

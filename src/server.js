@@ -19,6 +19,7 @@ import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError, aiModel, listModels } from './ai.js';
 import { signalsEnabled, getSignals, momentumScore, lastSignalError } from './signals.js';
+import { reconstruct } from './backfill.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -248,6 +249,12 @@ app.get('/api/reports', wrap(async (_req, res) => res.json(await listReports()))
 app.delete('/api/reports/:id', wrap(async (req, res) => {
   await deleteReport(Number(req.params.id));
   res.json({ ok: true });
+}));
+// Reconstrucción histórica de snapshots
+app.post('/api/admin/backfill', wrap(async (req, res) => {
+  const { from, granularity } = req.body || {};
+  if (!from) return res.status(400).json({ error: 'falta la fecha "desde"' });
+  res.json(await reconstruct({ from, granularity: granularity || 'daily' }));
 }));
 app.get('/api/reports/latest', wrap(async (_req, res) => {
   const r = await latestReport();
