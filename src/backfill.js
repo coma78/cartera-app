@@ -55,7 +55,10 @@ export async function reconstruct({ from, granularity = 'daily' }) {
 
   const tickers = [...new Set(holdings.map(h => h.ticker))];
   const history = await getHistory(tickers);
-  if (!Object.keys(history).length) throw new Error('No se pudieron traer precios históricos de FMP');
+  if (!Object.keys(history).length) {
+    const err = lastSignalError();
+    throw new Error('No se pudieron traer precios históricos de FMP' + (err ? `: ${err}` : ''));
+  }
 
   const dates = buildDates(from, granularity);
   const snaps = [];

@@ -60,12 +60,10 @@ export async function getSignals(tickers) {
 // espaciadas, para no saturar el límite de FMP al reconstruir varias veces.
 const _hist = new Map();            // ticker -> { ts, series }
 const HIST_TTL = 12 * 3600 * 1000;
-const FROM_FLOOR = '2024-01-01';    // bajamos histórico amplio una sola vez
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 export async function getHistory(tickers) {
   if (!FMP_KEY) return {};
-  const to = new Date().toISOString().slice(0, 10);
   const out = {};
   const uniq = [...new Set((tickers || []).map(x => x.toUpperCase().trim()).filter(Boolean))];
   for (const t of uniq) {
@@ -73,7 +71,8 @@ export async function getHistory(tickers) {
     if (c && Date.now() - c.ts < HIST_TTL) { out[t] = c.series; continue; }
     const sym = ALIAS[t] || t;
     try {
-      const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&from=${FROM_FLOOR}&to=${to}&apikey=${FMP_KEY}`);
+      // Misma llamada que el momentum (sin rango), que ya funciona en el plan free.
+      const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&apikey=${FMP_KEY}`);
       if (r.ok) {
         let arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
         const ser = (arr || [])
