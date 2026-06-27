@@ -598,13 +598,34 @@ async function computeSuggest() {
 function techBadges(t) {
   if (!t) return '';
   const p = [];
-  if (t.rsi != null) { const c = t.rsi > 70 ? 'neg' : t.rsi < 30 ? 'pos' : ''; p.push(`<span class="tag ${c}">RSI ${t.rsi}</span>`); }
-  if (t.trend) p.push(`<span class="tag">${t.trend === 'alcista' ? '↑' : t.trend === 'bajista' ? '↓' : '→'} ${t.trend}</span>`);
-  if (t.macdHist != null) p.push(`<span class="tag ${t.macdHist > 0 ? 'pos' : 'neg'}">MACD ${t.macdHist > 0 ? '+' : '−'}</span>`);
-  if (t.distHigh != null) p.push(`<span class="tag">a máx ${t.distHigh}%</span>`);
-  if (t.vol != null) p.push(`<span class="tag">vol ${t.vol}%</span>`);
+  if (t.rsi != null) {
+    const v = t.rsi, c = v > 70 ? 'neg' : v < 30 ? 'pos' : '';
+    const tip = `RSI ${v} — ${v > 70 ? 'sobrecompra (caro/estirado)' : v < 30 ? 'sobreventa (barato/castigado)' : 'fuerza ' + (v >= 55 ? 'positiva' : v <= 45 ? 'floja' : 'neutra')}. Escala 0–100: >70 caro, <30 barato.`;
+    p.push(`<span class="tag ${c}" title="${tip}">RSI ${v}</span>`);
+  }
+  if (t.trend) {
+    const tip = `Tendencia ${t.trend} — la media de 50 días está ${t.trend === 'alcista' ? 'por encima' : t.trend === 'bajista' ? 'por debajo' : 'cerca'} de la de 200.`;
+    p.push(`<span class="tag" title="${tip}">${t.trend === 'alcista' ? '↑' : t.trend === 'bajista' ? '↓' : '→'} ${t.trend}</span>`);
+  }
+  if (t.macdHist != null) {
+    const up = t.macdHist > 0;
+    p.push(`<span class="tag ${up ? 'pos' : 'neg'}" title="MACD ${up ? 'positivo' : 'negativo'} — momentum de corto plazo ${up ? 'al alza' : 'a la baja'}.">MACD ${up ? '+' : '−'}</span>`);
+  }
+  if (t.distHigh != null) p.push(`<span class="tag" title="A ${t.distHigh}% del máximo de 52 semanas (0% = en máximos; muy negativo = lejos del máximo).">a máx ${t.distHigh}%</span>`);
+  if (t.vol != null) p.push(`<span class="tag" title="Volatilidad anualizada ${t.vol}% — ${t.vol < 15 ? 'tranquila' : t.vol > 30 ? 'movida (riesgo alto)' : 'media'}.">vol ${t.vol}%</span>`);
   return `<div class="tags">${p.join('')}</div>`;
 }
+
+const TECH_LEGEND = `<details class="tech-legend"><summary>¿Cómo leer los indicadores?</summary>
+  <ul>
+    <li><b>RSI</b> (0–100): fuerza del precio. &gt;70 sobrecompra (caro), &lt;30 sobreventa (barato), ~50 neutro.</li>
+    <li><b>Tendencia</b>: media de 50 vs 200 días. <b>↑ alcista</b> = cotiza sobre su promedio largo; <b>↓ bajista</b> al revés.</li>
+    <li><b>MACD</b>: <b>+</b> momentum al alza, <b>−</b> a la baja.</li>
+    <li><b>a máx</b>: distancia al máximo de 52 semanas (0% = en máximos, muy negativo = lejos).</li>
+    <li><b>vol</b>: volatilidad anual. &lt;15% tranquila, &gt;30% movida (más riesgo).</li>
+  </ul>
+  <p class="muted-sm" style="margin:6px 0 0">Son indicadores conocidos, no garantías: pueden dar señales falsas. Información para tu decisión, no recomendación.</p>
+</details>`;
 
 function renderSuggestResult(data) {
   LAST_SUGGEST = data;
@@ -636,6 +657,7 @@ function renderSuggestResult(data) {
         <td class="num hide-sm">${money(r.buyMoney)}</td>
         <td class="num"><span class="muted-sm">${r.currentWeight}% → ${r.targetWeight}% →</span> <b>${r.resultingWeight}%</b></td>
       </tr>`).join('')}</tbody></table>` : '<div class="empty">No hay compras sugeridas con esos parámetros.</div>'}
+    ${rows.length && rows.some(r => r.tech) ? TECH_LEGEND : ''}
     <div class="rationale">💡 <b>${explTitle}:</b> ${expl}</div>`;
 }
 

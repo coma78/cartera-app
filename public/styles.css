@@ -149,6 +149,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
 .sg-note-label textarea { width: 100%; margin-top: 5px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; font-family: inherit; resize: vertical; background: var(--panel-2); }
 .rationale { margin-top: 14px; padding: 13px 15px; background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 10px; font-size: 13px; line-height: 1.55; }
 .notice { margin: 6px 0 12px; padding: 10px 13px; background: rgba(234,179,8,.1); border: 1px solid rgba(234,179,8,.3); border-radius: 10px; font-size: 13px; color: #fde68a; }
+.tech-legend { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+.tech-legend summary { cursor: pointer; color: var(--brand); font-size: 13px; }
+.tech-legend ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
+.tech-legend b { color: var(--ink); }
 .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); padding: 6px 0 14px; flex-wrap: wrap; }
 .toggle-row input { width: auto; }
 
