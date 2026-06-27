@@ -647,7 +647,7 @@ function openHoldingForm(h = null) {
     <label>Ticker (del catálogo)</label>
     <select id="f-ticker-sel">${opts}</select>
     <label>Ratio (heredado del ticker)</label>
-    <input id="f-ratio" type="number" value="${h?.ratio ?? ''}" readonly style="background:#f4f6f9">
+    <input id="f-ratio" type="number" value="${h?.ratio ?? ''}" readonly>
     ${field('Precio de compra — de la acción US (USD)', 'buy', h?.buy_price ?? '', 'number', '334.25')}
     ${field('Nominales (cantidad de CEDEARs)', 'qty', h?.quantity ?? '', 'number', '90')}
     ${field('Fecha de compra', 'pdate', dateVal, 'date')}
@@ -749,7 +749,7 @@ function openImportForm() {
   document.getElementById('modal-body').innerHTML = `
     <p style="font-size:12px;color:#7a8190;margin:0 0 8px">Pegá filas: <b>fecha · ticker · precio acción · nominales</b> (ej. <code>13/8/24 MSFT $ 410,75 10</code>).</p>
     <textarea id="f-import" rows="9" placeholder="13/8/24  MSFT  $ 410,75  10"></textarea>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#1c1c1c"><input type="checkbox" id="f-reset" style="width:auto"> Reemplazar lo que ya tengo</label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--ink)"><input type="checkbox" id="f-reset" style="width:auto"> Reemplazar lo que ya tengo</label>
     <div id="import-preview" style="font-size:12px;color:#7a8190;margin-top:8px"></div>`;
   const ta = document.getElementById('f-import'), prev = document.getElementById('import-preview');
   ta.addEventListener('input', () => {
@@ -869,6 +869,10 @@ function bindEvents() {
 
 // ---------- Init ----------
 (async function init() {
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = '#8a97a8';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+  }
   bindEvents();
   await loadConfig();
   setEye();
