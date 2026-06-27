@@ -208,7 +208,8 @@ app.post('/api/suggest', wrap(async (req, res) => {
   const rationale = templateRationale(plan);
   // En estrategia IA el "comentario" es el análisis; en las demás, una explicación del plan.
   const ai = aiAnalysis || (strat !== 'ai' ? await aiRationale(plan, note) : null);
-  res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled(), notice });
+  const techInfo = { enabled: signalsEnabled(), count: Object.keys(technicals).length, error: lastSignalError() };
+  res.json({ plan, rationale, aiRationale: ai, aiEnabled: aiEnabled(), notice, techInfo });
 }));
 
 // ---- Diagnóstico FMP ----

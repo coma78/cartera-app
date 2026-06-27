@@ -605,8 +605,12 @@ function renderSuggestResult(data) {
   const expl = data.aiRationale || data.rationale;
   const explTitle = data.aiRationale ? 'Comentario del modelo (IA)' : 'Resumen';
   const noticeHtml = data.notice ? `<div class="notice">⚠️ ${data.notice}</div>` : '';
+  const ti = data.techInfo;
+  let techNote = '';
+  if (ti && ti.enabled && ti.count === 0) techNote = `<div class="notice">Sin indicadores técnicos: FMP no devolvió datos${ti.error ? ` — ${ti.error}` : ''}.</div>`;
+  else if (ti && !ti.enabled) techNote = `<div class="muted-sm" style="margin-bottom:8px">Indicadores técnicos desactivados (falta FMP_API_KEY en el servidor).</div>`;
   document.getElementById('sg-result').innerHTML = `
-    ${noticeHtml}
+    ${noticeHtml}${techNote}
     <div class="totals-strip">
       <span>A invertir: <b>${money(p.amount)}</b></span>
       <span>Distribuido: <b>${money(p.invested)}</b></span>
