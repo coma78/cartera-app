@@ -55,6 +55,21 @@ export async function migrate() {
     );
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS sales (
+      id            SERIAL PRIMARY KEY,
+      holding_id    INTEGER,
+      ticker        TEXT NOT NULL,
+      quantity      NUMERIC NOT NULL,
+      sell_price    NUMERIC NOT NULL,
+      sell_date     DATE,
+      buy_price     NUMERIC,
+      purchase_date DATE,
+      ratio         NUMERIC NOT NULL DEFAULT 1,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
   // Migraciones idempotentes para bases ya creadas (deploys existentes).
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date DATE;`);
@@ -219,6 +234,46 @@ export async function saveReport({ summary, html, emailed }) {
 export async function latestReport() {
   const { rows } = await query('SELECT * FROM reports ORDER BY created_at DESC LIMIT 1');
   return rows[0] || null;
+}
+
+// ---------- Sales (ventas) ----------
+export async function listSales() {
+  const { rows } = await query('SELECT * FROM sales ORDER BY sell_date DESC NULLS LAST, id DESC');
+  return rows;
+}
+
+// Vende una cantidad de un lote (holding) específico: descuenta del lote y
+// guarda la venta con snapshots del precio/fecha de compra para el historial.
+export async function sellFromLot({ holding_id, quantity, sell_price, sell_date }) {
+  const id = Number(holding_id);
+  const q = Number(quantity);
+  const sp = Number(sell_price);
+  if (!(q > 0)) throw new Error('La cantidad a vender debe ser mayor a 0');
+  if (isNaN(sp)) throw new Error('El precio de venta es obligatorio');
+  const { rows } = await query('SELECT * FROM holdings WHERE id = $1', [id]);
+  const lot = rows[0];
+  if (!lot) throw new Error('La tenencia elegida no existe');
+  const remaining = Number(lot.quantity);
+  if (q > remaining) throw new Error(`No podés vender ${q}; en ese lote te quedan ${remaining} CEDEARs`);
+
+  await query('UPDATE holdings SET quantity = quantity - $2 WHERE id = $1', [id, q]);
+  const ins = await query(
+    `INSERT INTO sales (holding_id, ticker, quantity, sell_price, sell_date, buy_price, purchase_date, ratio)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [id, lot.ticker, q, sp, sell_date || null, lot.buy_price, lot.purchase_date, lot.ratio]
+  );
+  return ins.rows[0];
+}
+
+// Borra una venta y, si el lote sigue existiendo, le devuelve la cantidad.
+export async function deleteSaleRestore(saleId) {
+  const { rows } = await query('SELECT * FROM sales WHERE id = $1', [saleId]);
+  const s = rows[0];
+  if (!s) return;
+  if (s.holding_id) {
+    await query('UPDATE holdings SET quantity = quantity + $2 WHERE id = $1', [s.holding_id, Number(s.quantity)]);
+  }
+  await query('DELETE FROM sales WHERE id = $1', [saleId]);
 }
 
 // ---------- Settings ----------

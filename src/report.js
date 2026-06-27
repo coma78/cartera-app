@@ -50,6 +50,7 @@ export async function buildReport({ withNews = false, maxAgeMs = 60000 } = {}) {
   const holdingResults = [];
   const errors = [];
   for (const h of holdings) {
+    if (Number(h.quantity) <= 0) continue; // lote vendido por completo
     const r = qOf(h.ticker);
     if (r && r.ok) holdingResults.push(analyzeHolding(h, r.quote));
     else holdingResults.push(degradedHolding(h));

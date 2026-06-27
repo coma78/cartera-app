@@ -10,6 +10,7 @@ let HOLDINGS = [];
 let CATALOG = [];
 let WATCHLIVE = [];
 let REPORTS = [];
+let SALES = [];
 let SETTINGS = { dailyEmail: true };
 let PAGE = 1;
 let CURRENT_SEC = 'resumen';
@@ -83,7 +84,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', sugerencias: 'Sugerencias', tickers: 'Tickers', tenencias: 'Tenencias', reportes: 'Reportes diarios' };
+const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', sugerencias: 'Sugerencias', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   CURRENT_SEC = sec;
   localStorage.setItem(SEC_KEY, sec);
@@ -100,6 +101,7 @@ function renderSection(sec) {
   else if (sec === 'sugerencias') renderSugerencias();
   else if (sec === 'tickers') renderCatalog();
   else if (sec === 'tenencias') renderManage();
+  else if (sec === 'ventas') renderVentas();
   else if (sec === 'reportes') renderReportsList();
 }
 
@@ -133,6 +135,9 @@ async function refreshQuotes() {
 async function loadReports() {
   REPORTS = await api('/reports').catch(() => []);
 }
+async function loadSales() {
+  SALES = await api('/sales').catch(() => []);
+}
 async function loadSettings() {
   try { SETTINGS = await api('/settings'); } catch (e) { SETTINGS = { dailyEmail: true }; }
   const chk = document.getElementById('chk-daily-email');
@@ -142,6 +147,7 @@ async function loadAll() {
   await refreshCatalog();
   await loadDashboard();
   await loadReports();
+  await loadSales();
   await loadSettings();
   renderSection(CURRENT_SEC);
 }
@@ -466,6 +472,68 @@ function renderManage() {
       </tr>`).join('')}</tbody></table>`;
 }
 
+// ---------- VENTAS ----------
+function renderVentas() {
+  const sel = document.getElementById('sv-lot');
+  const lots = HOLDINGS.filter(h => Number(h.quantity) > 0)
+    .sort((a, b) => a.ticker.localeCompare(b.ticker) || String(a.purchase_date || '').localeCompare(String(b.purchase_date || '')));
+  sel.innerHTML = lots.length
+    ? lots.map(h => `<option value="${h.id}">${h.ticker} · ${fmtDate(h.purchase_date)} · ${h.quantity} CEDEARs · compra ${money(h.buy_price)}</option>`).join('')
+    : '<option value="">No hay tenencias para vender</option>';
+  const dEl = document.getElementById('sv-date');
+  if (!dEl.value) dEl.value = new Date().toISOString().slice(0, 10);
+
+  let realized = 0;
+  for (const s of SALES) { const r = Number(s.ratio) > 0 ? Number(s.ratio) : 1; realized += (Number(s.quantity) / r) * (Number(s.sell_price) - Number(s.buy_price)); }
+  realized = round2(realized);
+  const rl = document.getElementById('ventas-realized');
+  rl.textContent = SALES.length ? `Ganancia realizada: ${HIDE_MONEY ? '••••' : money(realized)}` : '';
+
+  const el = document.getElementById('sales-list');
+  if (!SALES.length) { el.innerHTML = '<div class="empty">Todavía no registraste ventas.</div>'; return; }
+  el.innerHTML = `<table><thead><tr>
+      <th>Ticker</th><th class="num">Fecha</th><th class="num">Nominales</th><th class="num hide-sm">Compra</th><th class="num">Venta</th><th class="num">Ganancia</th><th class="num"></th>
+    </tr></thead><tbody>${SALES.map(s => {
+      const r = Number(s.ratio) > 0 ? Number(s.ratio) : 1;
+      const g = round2((Number(s.quantity) / r) * (Number(s.sell_price) - Number(s.buy_price)));
+      return `<tr>
+        <td><b>${s.ticker}</b></td>
+        <td class="num">${fmtDate(s.sell_date)}</td>
+        <td class="num">${s.quantity}</td>
+        <td class="num hide-sm">${money(s.buy_price)}</td>
+        <td class="num">${money(s.sell_price)}</td>
+        <td class="num ${cls(g)}">${money(g)}</td>
+        <td class="num row-actions"><button title="Borrar (devuelve la cantidad)" onclick="delSale(${s.id})">🗑️</button></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+async function registerSale() {
+  const holding_id = document.getElementById('sv-lot').value;
+  if (!holding_id) return toast('Elegí una tenencia');
+  const body = {
+    holding_id: Number(holding_id),
+    quantity: parseFloat(document.getElementById('sv-qty').value),
+    sell_price: parseFloat(document.getElementById('sv-price').value),
+    sell_date: document.getElementById('sv-date').value || null,
+  };
+  if (!(body.quantity > 0) || isNaN(body.sell_price)) return toast('Completá nominales y precio de venta');
+  const b = document.getElementById('sv-go'); b.disabled = true; b.textContent = 'Guardando…';
+  try {
+    await api('/sales', { method: 'POST', body: JSON.stringify(body) });
+    toast('Venta registrada');
+    document.getElementById('sv-qty').value = ''; document.getElementById('sv-price').value = '';
+    await loadAll();
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = 'Registrar venta';
+}
+
+async function delSale(id) {
+  if (!confirm('¿Borrar esta venta? Se devuelve la cantidad a la tenencia.')) return;
+  try { await api('/sales/' + id, { method: 'DELETE' }); toast('Venta borrada'); await loadAll(); }
+  catch (e) { toast(e.message); }
+}
+
 // ---------- SUGERENCIAS ----------
 function renderSugerencias() {
   const badge = document.getElementById('ai-badge');
@@ -770,6 +838,7 @@ function bindEvents() {
   document.getElementById('sg-go').onclick = computeSuggest;
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
+  document.getElementById('sv-go').onclick = registerSale;
   document.getElementById('chk-daily-email').addEventListener('change', async function () {
     try {
       SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ dailyEmail: this.checked }) });

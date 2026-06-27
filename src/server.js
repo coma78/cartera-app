@@ -11,6 +11,7 @@ import {
   listWatchlist, addWatch, updateWatch, deleteWatch, deleteAllWatch, applyRatioChange,
   listReports, latestReport, deleteAllReports, deleteReport,
   getSetting, setSetting,
+  listSales, sellFromLot, deleteSaleRestore,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
@@ -215,6 +216,18 @@ app.get('/api/suggest/diag', wrap(async (_req, res) => {
 app.get('/api/suggest/diag-ai', wrap(async (_req, res) => {
   if (!aiEnabled()) return res.json({ enabled: false, msg: 'ANTHROPIC_API_KEY no está cargada' });
   res.json({ enabled: true, modeloActual: aiModel(), disponibles: await listModels() });
+}));
+
+// ---- Ventas ----
+app.get('/api/sales', wrap(async (_req, res) => res.json(await listSales())));
+app.post('/api/sales', wrap(async (req, res) => {
+  const { holding_id, quantity, sell_price, sell_date } = req.body || {};
+  if (!holding_id) return res.status(400).json({ error: 'Elegí de qué tenencia vender' });
+  res.json(await sellFromLot({ holding_id, quantity, sell_price, sell_date }));
+}));
+app.delete('/api/sales/:id', wrap(async (req, res) => {
+  await deleteSaleRestore(Number(req.params.id));
+  res.json({ ok: true });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----

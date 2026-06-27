@@ -25,6 +25,7 @@
         <div class="nav-group">Carga</div>
         <a class="nav-item" data-sec="tickers">🏷️ Tickers</a>
         <a class="nav-item" data-sec="tenencias">➕ Tenencias</a>
+        <a class="nav-item" data-sec="ventas">💰 Ventas</a>
         <div class="nav-group">Reportería</div>
         <a class="nav-item" data-sec="reportes">✉️ Reportes diarios</a>
       </nav>
@@ -144,6 +145,26 @@
             </div>
           </div>
           <div id="manage-table"></div>
+        </div>
+      </section>
+
+      <!-- VENTAS -->
+      <section id="sec-ventas" class="section hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Ventas</h2>
+            <span class="muted-sm" id="ventas-realized"></span>
+          </div>
+          <div class="filters">
+            <label>Tenencia (de qué lote vendés)
+              <select id="sv-lot" style="min-width:240px"></select>
+            </label>
+            <label>Nominales a vender<input type="number" id="sv-qty" min="1" step="1" placeholder="10"></label>
+            <label>Precio de venta (acción US, USD)<input type="number" id="sv-price" step="any" placeholder="500"></label>
+            <label>Fecha de venta<input type="date" id="sv-date"></label>
+            <button class="btn primary" id="sv-go">Registrar venta</button>
+          </div>
+          <div id="sales-list"></div>
         </div>
       </section>
 

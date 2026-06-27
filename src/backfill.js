@@ -3,7 +3,7 @@
 // (purchase_date <= fecha) y el precio histórico de cada ticker (FMP).
 // Es una aproximación: usa los lotes actuales retrocedidos por su fecha de
 // compra; no contempla ventas/cierres previos.
-import { listHoldings, insertReportAt, deleteReconstructedReports } from './db.js';
+import { listHoldings, listSales, insertReportAt, deleteReconstructedReports } from './db.js';
 import { signalsEnabled, getHistory, lastSignalError } from './signals.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -60,6 +60,16 @@ export async function reconstruct({ from, granularity = 'daily' }) {
     throw new Error('No se pudieron traer precios históricos de FMP' + (err ? `: ${err}` : ''));
   }
 
+  // Ventas por lote, para reconstruir la cantidad que tenías en cada fecha.
+  const sales = await listSales();
+  const salesByLot = new Map();
+  for (const s of sales) {
+    if (!s.holding_id) continue;
+    const arr = salesByLot.get(s.holding_id) || [];
+    arr.push({ dateIso: isoDate(s.sell_date), qty: Number(s.quantity) });
+    salesByLot.set(s.holding_id, arr);
+  }
+
   const dates = buildDates(from, granularity);
   const snaps = [];
   for (const D of dates) {
@@ -72,7 +82,12 @@ export async function reconstruct({ from, granularity = 'daily' }) {
       const close = priceOn(series, D);
       if (close == null) continue;
       const ratio = Number(h.ratio) > 0 ? Number(h.ratio) : 1;
-      const shares = (Number(h.quantity) || 0) / ratio;
+      // Cantidad en la fecha D = remanente actual + lo vendido DESPUÉS de D.
+      const lotSales = salesByLot.get(h.id) || [];
+      const soldAfterD = lotSales.reduce((a, s) => a + (s.dateIso && s.dateIso > D ? s.qty : 0), 0);
+      const heldQty = (Number(h.quantity) || 0) + soldAfterD;
+      if (heldQty <= 0) continue;
+      const shares = heldQty / ratio;
       value += shares * close;
       cost += shares * Number(h.buy_price);
       count++;
