@@ -587,6 +587,17 @@ async function computeSuggest() {
   btn.disabled = false; btn.textContent = 'Calcular';
 }
 
+function techBadges(t) {
+  if (!t) return '';
+  const p = [];
+  if (t.rsi != null) { const c = t.rsi > 70 ? 'neg' : t.rsi < 30 ? 'pos' : ''; p.push(`<span class="tag ${c}">RSI ${t.rsi}</span>`); }
+  if (t.trend) p.push(`<span class="tag">${t.trend === 'alcista' ? '↑' : t.trend === 'bajista' ? '↓' : '→'} ${t.trend}</span>`);
+  if (t.macdHist != null) p.push(`<span class="tag ${t.macdHist > 0 ? 'pos' : 'neg'}">MACD ${t.macdHist > 0 ? '+' : '−'}</span>`);
+  if (t.distHigh != null) p.push(`<span class="tag">a máx ${t.distHigh}%</span>`);
+  if (t.vol != null) p.push(`<span class="tag">vol ${t.vol}%</span>`);
+  return `<div class="tags">${p.join('')}</div>`;
+}
+
 function renderSuggestResult(data) {
   LAST_SUGGEST = data;
   const p = data.plan;
@@ -606,7 +617,7 @@ function renderSuggestResult(data) {
       <th>Ticker</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr>
-        <td><b>${r.ticker}</b> <span class="muted-sm">${r.type}</span></td>
+        <td><b>${r.ticker}</b> <span class="muted-sm">${r.type}</span>${techBadges(r.tech)}</td>
         <td class="num"><b>${r.cedears}</b></td>
         <td class="num"><b>${r.pctOfNew}%</b></td>
         <td class="num hide-sm">${money(r.cedearPrice)}</td>

@@ -19,7 +19,8 @@ import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError, aiModel, listModels } from './ai.js';
-import { signalsEnabled, getSignals, momentumScore, lastSignalError } from './signals.js';
+import { signalsEnabled, getSignals, getHistory, momentumScore, lastSignalError } from './signals.js';
+import { computeTechnicals, techFactor, returnsFromSeries } from './technicals.js';
 import { reconstruct } from './backfill.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
 
@@ -167,6 +168,15 @@ app.post('/api/suggest', wrap(async (req, res) => {
   if (Array.isArray(include) && include.length) items = items.filter(i => include.includes(i.ticker));
   if (Array.isArray(exclude) && exclude.length) items = items.filter(i => !exclude.includes(i.ticker));
 
+  // Una sola descarga de la serie histórica (FMP) -> momentum + técnicos.
+  const history = signalsEnabled() ? await getHistory(items.map(i => i.ticker)) : {};
+  const technicals = {}, momentum = {};
+  for (const tk in history) {
+    const tech = computeTechnicals(history[tk]);
+    if (tech) technicals[tk] = { ...tech, techFactor: techFactor(tech) };
+    momentum[tk] = returnsFromSeries(history[tk]);
+  }
+
   // Estrategias con análisis: 'ai' (Claude) o 'momentum' (datos de mercado FMP).
   let strat = strategy;
   let scores = null, aiAnalysis = null, notice = null;
@@ -176,8 +186,7 @@ app.post('/api/suggest', wrap(async (req, res) => {
       strat = 'rebalance';
       notice = 'La estrategia con IA necesita ANTHROPIC_API_KEY. Se usó rebalanceo.';
     } else {
-      const sig = await getSignals(items.map(i => i.ticker)); // {} si no hay FMP
-      const sc = await aiScoresFn(items, { risk, note, signals: sig });
+      const sc = await aiScoresFn(items, { risk, note, signals: momentum, technicals });
       if (sc && sc.scores) { scores = sc.scores; aiAnalysis = sc.rationale; }
       else { strat = 'rebalance'; const err = lastAiError(); notice = 'No se pudo obtener el análisis de IA' + (err ? ` — ${err}` : '') + '. Se usó rebalanceo.'; }
     }
@@ -185,20 +194,17 @@ app.post('/api/suggest', wrap(async (req, res) => {
     if (!signalsEnabled()) {
       strat = 'rebalance';
       notice = 'La estrategia de momentum necesita FMP_API_KEY. Se usó rebalanceo.';
+    } else if (!Object.keys(momentum).length) {
+      strat = 'rebalance';
+      const err = lastSignalError();
+      notice = 'No se pudieron obtener datos de mercado (FMP)' + (err ? ` — ${err}` : '') + '. Se usó rebalanceo.';
     } else {
-      const sig = await getSignals(items.map(i => i.ticker));
-      if (!Object.keys(sig).length) {
-        strat = 'rebalance';
-        const err = lastSignalError();
-        notice = 'No se pudieron obtener datos de mercado (FMP)' + (err ? ` — ${err}` : '') + '. Se usó rebalanceo.';
-      } else {
-        scores = {};
-        for (const i of items) scores[i.ticker] = momentumScore(sig[i.ticker]);
-      }
+      scores = {};
+      for (const i of items) scores[i.ticker] = momentumScore(momentum[i.ticker]);
     }
   }
 
-  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy: strat, maxPerTicker, maxPerType, maxTickers, scores } });
+  const plan = computeSuggestion({ amount, items, prefs: { risk, strategy: strat, maxPerTicker, maxPerType, maxTickers, scores, technicals } });
   const rationale = templateRationale(plan);
   // En estrategia IA el "comentario" es el análisis; en las demás, una explicación del plan.
   const ai = aiAnalysis || (strat !== 'ai' ? await aiRationale(plan, note) : null);

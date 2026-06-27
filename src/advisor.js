@@ -86,7 +86,9 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
     const base = usesScores
       ? Math.max(0.0001, Number(prefs.scores[i.ticker]) || 0)
       : strategyWeight(i.plPct, strategy);
-    pwAll[i.ticker] = riskFactor(i.type, i.ticker, risk) * base;
+    // Factor técnico (RSI/tendencia/MACD) cuando hay indicadores.
+    const tf = (prefs.technicals && prefs.technicals[i.ticker]) ? (prefs.technicals[i.ticker].techFactor ?? 1) : 1;
+    pwAll[i.ticker] = riskFactor(i.type, i.ticker, risk) * base * tf;
   }
 
   // Límite de cantidad de tickers: nos quedamos con los más alineados
@@ -149,6 +151,7 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
       targetWeight: r2(tw[t] * 100),
       cedears, buyMoney: money,
       resultingValue: r2(curVal[t] + money),
+      tech: (prefs.technicals && prefs.technicals[t]) ? prefs.technicals[t] : null,
     });
   }
   const resTotal = V + used;

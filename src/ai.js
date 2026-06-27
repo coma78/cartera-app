@@ -52,24 +52,24 @@ async function callClaude(prompt, maxTokens = 600) {
 
 // Pide a Claude un puntaje 0-100 por ticker (análisis cualitativo combinado).
 // Devuelve { scores:{TICKER:num}, rationale } o null si falla / no hay key.
-export async function aiScores(items, { risk, note, signals } = {}) {
+export async function aiScores(items, { risk, note, signals, technicals } = {}) {
   if (!KEY) return null;
   const list = items.map(i => {
     const s = signals && signals[i.ticker];
-    const perf = s ? ` [1M ${s.m1 ?? '?'}%, 3M ${s.m3 ?? '?'}%, 6M ${s.m6 ?? '?'}%, 1A ${s.y1 ?? '?'}%]` : '';
-    return `${i.ticker} (${i.type})${perf}`;
+    const t = technicals && technicals[i.ticker];
+    const perf = s ? ` 1M ${s.m1 ?? '?'}% 3M ${s.m3 ?? '?'}% 6M ${s.m6 ?? '?'}%` : '';
+    const tec = t ? ` | RSI ${t.rsi ?? '?'}, tendencia ${t.trend}, MACD ${t.macdHist != null ? (t.macdHist > 0 ? '+' : '-') : '?'}, vol ${t.vol ?? '?'}%, a máx ${t.distHigh ?? '?'}%` : '';
+    return `${i.ticker} (${i.type})${perf ? ' [' + perf.trim() + ']' : ''}${tec}`;
   }).join('; ');
-  const dataNote = signals && Object.keys(signals).length
-    ? 'Usá los rendimientos reales entre corchetes (1M/3M/6M/1A) como base del análisis de tendencia.'
-    : 'No hay datos de rendimiento; analizá con tu conocimiento general.';
+  const hasData = (signals && Object.keys(signals).length) || (technicals && Object.keys(technicals).length);
   const prompt =
-`Sos un analista de inversiones. Te paso instrumentos (acciones/ETFs vía CEDEARs) con su rendimiento reciente y un perfil.
-${dataNote}
-Asigná a cada uno un PUNTAJE de 0 a 100 de cuán atractivo es para SUMARLO a la cartera AHORA, combinando: tendencia/momentum, fuerza relativa, y penalizando a las que vienen planas o rezagadas. Perfil de riesgo: ${risk || 'moderado'}. Preferencia del usuario: "${note || '(ninguna)'}".
+`Sos un analista de inversiones. Te paso instrumentos (acciones/ETFs vía CEDEARs) con datos técnicos y un perfil.
+${hasData ? 'Usá los datos reales de cada uno: rendimientos (1M/3M/6M), RSI (>70 sobrecompra, <30 sobreventa), tendencia, MACD, volatilidad y distancia al máximo.' : 'No hay datos de mercado; analizá con tu conocimiento general.'}
+Combiná ANÁLISIS TÉCNICO (con los datos) y una mirada FUNDAMENTAL CUALITATIVA (sector, posición competitiva, valuación a grandes rasgos según tu conocimiento). Asigná a cada uno un PUNTAJE de 0 a 100 de cuán atractivo es para SUMARLO AHORA, penalizando sobrecompradas o en clara debilidad. Perfil de riesgo: ${risk || 'moderado'}. Preferencia del usuario: "${note || '(ninguna)'}".
 Instrumentos: ${list}.
-Respondé EXCLUSIVAMENTE un JSON válido, sin texto extra, con esta forma:
-{"scores":{"TICKER":NUMERO,...},"rationale":"2-3 oraciones en español rioplatense"}.
-En el rationale aclará que es un análisis cualitativo basado en conocimiento general (no datos de mercado en vivo) y que no es asesoramiento financiero.`;
+Respondé EXCLUSIVAMENTE un JSON válido, sin texto extra:
+{"scores":{"TICKER":NUMERO,...},"rationale":"3-5 oraciones en español rioplatense, mencionando 1-2 riesgos y lo técnico+fundamental"}.
+En el rationale aclará que la parte fundamental es cualitativa (conocimiento general, no datos en vivo) y que no es asesoramiento financiero.`;
   const text = await callClaude(prompt, 700);
   if (text == null) return null;
   const m = text.match(/\{[\s\S]*\}/);
