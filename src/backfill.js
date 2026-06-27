@@ -4,10 +4,21 @@
 // Es una aproximación: usa los lotes actuales retrocedidos por su fecha de
 // compra; no contempla ventas/cierres previos.
 import { listHoldings, insertReportAt, deleteReconstructedReports } from './db.js';
-import { signalsEnabled, getHistory } from './signals.js';
+import { signalsEnabled, getHistory, lastSignalError } from './signals.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const fmt = (d) => d.toISOString().slice(0, 10);
+
+// Normaliza una fecha (Date de Postgres o string) a 'YYYY-MM-DD'.
+function isoDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v);
+  const m = s.match(/^\d{4}-\d{2}-\d{2}/);
+  if (m) return m[0];
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+}
 
 function buildDates(from, granularity) {
   const dates = [];
@@ -51,7 +62,7 @@ export async function reconstruct({ from, granularity = 'daily' }) {
   for (const D of dates) {
     let value = 0, cost = 0, count = 0;
     for (const h of holdings) {
-      const pd = h.purchase_date ? String(h.purchase_date).slice(0, 10) : null;
+      const pd = isoDate(h.purchase_date);
       if (!pd || pd > D) continue;                  // todavía no comprado
       const series = history[h.ticker];
       if (!series) continue;
@@ -75,5 +86,9 @@ export async function reconstruct({ from, granularity = 'daily' }) {
 
   await deleteReconstructedReports();
   for (const s of snaps) await insertReportAt(s.at, s.summary);
-  return { inserted: snaps.length, from, granularity, tickers: Object.keys(history).length };
+  const tickersMissing = tickers.filter(t => !history[t]);
+  return {
+    inserted: snaps.length, from, granularity,
+    tickersOk: Object.keys(history), tickersMissing, error: lastSignalError(),
+  };
 }

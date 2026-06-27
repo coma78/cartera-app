@@ -724,7 +724,9 @@ async function runBackfill() {
   const b = document.getElementById('bf-go'); b.disabled = true; b.textContent = 'Reconstruyendo…';
   try {
     const r = await api('/admin/backfill', { method: 'POST', body: JSON.stringify({ from, granularity }) });
-    toast(`Reconstruidos ${r.inserted} puntos (${r.tickers} tickers)`);
+    let msg = `Reconstruidos ${r.inserted} puntos (${(r.tickersOk || []).length} tickers con datos)`;
+    if (r.tickersMissing && r.tickersMissing.length) msg += ` · sin datos FMP: ${r.tickersMissing.join(', ')}`;
+    toast(msg);
     await loadReports(); renderSection(CURRENT_SEC);
   } catch (e) { toast(e.message); }
   b.disabled = false; b.textContent = 'Reconstruir histórico';
