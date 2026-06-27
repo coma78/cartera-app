@@ -54,7 +54,7 @@ export async function reconstruct({ from, granularity = 'daily' }) {
   if (!holdings.length) throw new Error('No hay tenencias para reconstruir');
 
   const tickers = [...new Set(holdings.map(h => h.ticker))];
-  const history = await getHistory(tickers, from);
+  const history = await getHistory(tickers);
   if (!Object.keys(history).length) throw new Error('No se pudieron traer precios históricos de FMP');
 
   const dates = buildDates(from, granularity);

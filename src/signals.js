@@ -56,25 +56,34 @@ export async function getSignals(tickers) {
   return out;
 }
 
-// Serie histórica de cierres por ticker (una llamada por ticker) para
-// reconstruir el histórico. Devuelve map ticker -> [{date, close}] ascendente.
-export async function getHistory(tickers, from) {
+// Serie histórica de cierres por ticker. Cacheada (12 h) y con las llamadas
+// espaciadas, para no saturar el límite de FMP al reconstruir varias veces.
+const _hist = new Map();            // ticker -> { ts, series }
+const HIST_TTL = 12 * 3600 * 1000;
+const FROM_FLOOR = '2024-01-01';    // bajamos histórico amplio una sola vez
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+export async function getHistory(tickers) {
   if (!FMP_KEY) return {};
   const to = new Date().toISOString().slice(0, 10);
   const out = {};
-  for (const t of [...new Set((tickers || []).map(x => x.toUpperCase().trim()).filter(Boolean))]) {
+  const uniq = [...new Set((tickers || []).map(x => x.toUpperCase().trim()).filter(Boolean))];
+  for (const t of uniq) {
+    const c = _hist.get(t);
+    if (c && Date.now() - c.ts < HIST_TTL) { out[t] = c.series; continue; }
     const sym = ALIAS[t] || t;
     try {
-      const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&from=${from}&to=${to}&apikey=${FMP_KEY}`);
-      if (!r.ok) { _lastError = r.error; continue; }
-      let arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
-      if (!arr) continue;
-      const ser = arr
-        .map(h => ({ date: String(h.date).slice(0, 10), close: Number(h.price ?? h.close ?? h.adjClose) }))
-        .filter(x => Number.isFinite(x.close))
-        .sort((a, b) => a.date.localeCompare(b.date));
-      if (ser.length) out[t] = ser;
+      const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&from=${FROM_FLOOR}&to=${to}&apikey=${FMP_KEY}`);
+      if (r.ok) {
+        let arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
+        const ser = (arr || [])
+          .map(h => ({ date: String(h.date).slice(0, 10), close: Number(h.price ?? h.close ?? h.adjClose) }))
+          .filter(x => Number.isFinite(x.close))
+          .sort((a, b) => a.date.localeCompare(b.date));
+        if (ser.length) { _hist.set(t, { ts: Date.now(), series: ser }); out[t] = ser; }
+      } else { _lastError = r.error; }
     } catch (e) { _lastError = e.message; }
+    await sleep(300); // espaciar para no pegarle al límite
   }
   return out;
 }
