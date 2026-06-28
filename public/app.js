@@ -293,16 +293,22 @@ function renderWinLoss() {
   });
 }
 
+function mondayOf(d) {
+  const dt = new Date(d); const off = (dt.getDay() + 6) % 7; // 0=lunes
+  dt.setDate(dt.getDate() - off); dt.setHours(0, 0, 0, 0); return dt;
+}
 function evoBucketKey(d) {
   const dt = new Date(d), y = dt.getFullYear(), m = String(dt.getMonth() + 1).padStart(2, '0'), day = String(dt.getDate()).padStart(2, '0');
   if (EVO_GROUP === 'anio') return '' + y;
   if (EVO_GROUP === 'mes') return y + '-' + m;
+  if (EVO_GROUP === 'semana') return mondayOf(d).toISOString().slice(0, 10);
   return y + '-' + m + '-' + day;
 }
 function evoLabel(d) {
   const dt = new Date(d);
   if (EVO_GROUP === 'anio') return '' + dt.getFullYear();
   if (EVO_GROUP === 'mes') return dt.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' });
+  if (EVO_GROUP === 'semana') return 'sem ' + mondayOf(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
   return dt.toLocaleDateString('es-AR');
 }
 function renderEvolution() {
