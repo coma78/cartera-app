@@ -16,6 +16,7 @@ let PAGE = 1;
 let CURRENT_SEC = 'resumen';
 let DIST_MODE = 'ticker';
 let EVO_MODE = 'mercado';
+let EVO_GROUP = 'dia';
 let LAST_CARTERA = { rows: [], view: 'lots' };
 let LAST_SUGGEST = null;
 const CHARTS = {};
@@ -292,9 +293,26 @@ function renderWinLoss() {
   });
 }
 
+function evoBucketKey(d) {
+  const dt = new Date(d), y = dt.getFullYear(), m = String(dt.getMonth() + 1).padStart(2, '0'), day = String(dt.getDate()).padStart(2, '0');
+  if (EVO_GROUP === 'anio') return '' + y;
+  if (EVO_GROUP === 'mes') return y + '-' + m;
+  return y + '-' + m + '-' + day;
+}
+function evoLabel(d) {
+  const dt = new Date(d);
+  if (EVO_GROUP === 'anio') return '' + dt.getFullYear();
+  if (EVO_GROUP === 'mes') return dt.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' });
+  return dt.toLocaleDateString('es-AR');
+}
 function renderEvolution() {
-  const r = [...REPORTS].reverse(); // cronologico
-  const labels = r.map(x => new Date(x.created_at).toLocaleDateString('es-AR'));
+  if (!REPORTS.length) { destroyChart('evo'); return; }
+  // Agrupar por día/mes/año: último snapshot de cada período (orden cronológico).
+  const chrono = [...REPORTS].reverse();
+  const byKey = new Map();
+  for (const x of chrono) byKey.set(evoBucketKey(x.created_at), x);
+  const r = [...byKey.values()];
+  const labels = r.map(x => evoLabel(x.created_at));
   const pct = r.map(x => x.summary?.totalPlPct ?? null);
   if (r.length < 1) { destroyChart('evo'); return; }
   let datasets, scales;
@@ -953,6 +971,7 @@ function bindEvents() {
     b.classList.add('active');
     if (b.dataset.dist) { DIST_MODE = b.dataset.dist; renderDist(); }
     if (b.dataset.evo) { EVO_MODE = b.dataset.evo; renderEvolution(); }
+    if (b.dataset.evog) { EVO_GROUP = b.dataset.evog; renderEvolution(); }
   });
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
