@@ -22,6 +22,7 @@
         <a class="nav-item active" data-sec="resumen">📊 Resumen</a>
         <a class="nav-item" data-sec="cartera">💼 Cartera</a>
         <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
+        <a class="nav-item" data-sec="descubrir">🔎 Descubrir</a>
         <div class="nav-group">Carga</div>
         <a class="nav-item" data-sec="tickers">🏷️ Tickers</a>
         <a class="nav-item" data-sec="tenencias">➕ Tenencias</a>
@@ -201,6 +202,12 @@
             <label>Máx % por ticker<input type="number" id="sg-maxticker" placeholder="auto" min="0" max="100"></label>
             <label>Máx % por tipo<input type="number" id="sg-maxtype" placeholder="auto" min="0" max="100"></label>
             <label>Máx. de tickers<input type="number" id="sg-maxn" placeholder="todos" min="1" step="1"></label>
+            <label>Priorizar región
+              <select id="sg-region"><option>Todas</option><option>EEUU</option><option>Latam</option><option>Brasil</option><option>Argentina</option><option>China</option><option>Global</option></select>
+            </label>
+            <label>Priorizar sector
+              <select id="sg-sector"><option>Todos</option><option>Tecnología</option><option>Financiero</option><option>Salud</option><option>Energía</option><option>Consumo</option><option>Materiales</option><option>Índice</option></select>
+            </label>
             <button class="btn primary" id="sg-go">Calcular</button>
           </div>
           <details class="sg-details">
@@ -215,6 +222,38 @@
           <p class="disclaimer" style="padding:0">
             Escenario informativo calculado con reglas, no asesoramiento financiero. No es una orden de compra; verificá precios antes de operar.
           </p>
+        </div>
+      </section>
+
+      <!-- DESCUBRIR -->
+      <section id="sec-descubrir" class="section hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Descubrir tickers</h2>
+            <span class="muted-sm" id="disc-badge"></span>
+          </div>
+          <div class="filters">
+            <label>Región
+              <select id="dc-region">
+                <option>Todas</option><option>EEUU</option><option>Latam</option><option>Brasil</option><option>Argentina</option><option>México</option><option>Chile</option><option>China</option><option>Global</option>
+              </select>
+            </label>
+            <label>Sector
+              <select id="dc-sector">
+                <option>Todos</option><option>Tecnología</option><option>Financiero</option><option>Salud</option><option>Energía</option><option>Consumo</option><option>Materiales</option><option>Industrial</option><option>Comunicaciones</option><option>Índice</option>
+              </select>
+            </label>
+            <label>Tipo
+              <select id="dc-type"><option>Todos</option><option>Acción</option><option>ETF</option></select>
+            </label>
+            <button class="btn" id="dc-go">Buscar</button>
+            <button class="btn primary" id="dc-ai">Analizar con IA</button>
+          </div>
+          <label class="sg-note-label">Tema o preferencia (opcional, para la IA)
+            <textarea id="dc-note" rows="2" placeholder="Ej: rotar de EEUU a Latinoamérica; foco en bancos y energía"></textarea>
+          </label>
+          <div id="disc-result"></div>
+          <p class="disclaimer" style="padding:0">Universo curado orientativo (no exhaustivo). Verificá el ratio al agregar. Información, no recomendación.</p>
         </div>
       </section>
 

@@ -19,7 +19,8 @@ import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
-import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError, aiModel, listModels } from './ai.js';
+import { aiEnabled, aiRationale, aiScores as aiScoresFn, aiDiscover, lastAiError, aiModel, listModels } from './ai.js';
+import { filterUniverse } from './universe.js';
 import { signalsEnabled, getSignals, getHistory, momentumScore, lastSignalError, clearSeriesMemory } from './signals.js';
 import { computeTechnicals, techFactor, returnsFromSeries } from './technicals.js';
 import { reconstruct } from './backfill.js';
@@ -269,6 +270,21 @@ app.post('/api/sales', wrap(async (req, res) => {
 app.delete('/api/sales/:id', wrap(async (req, res) => {
   await deleteSaleRestore(Number(req.params.id));
   res.json({ ok: true });
+}));
+
+// ---- Descubrir tickers (universo curado + IA) ----
+app.get('/api/universe', wrap(async (req, res) => {
+  const { region, sector, type } = req.query;
+  const cat = new Set((await listWatchlist()).map(w => w.ticker));
+  const items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
+  res.json({ items });
+}));
+app.post('/api/discover', wrap(async (req, res) => {
+  const { region, sector, type, note } = req.body || {};
+  const cat = new Set((await listWatchlist()).map(w => w.ticker));
+  const items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
+  const ai = await aiDiscover(items, { region, sector, note });
+  res.json({ items, aiRationale: ai, aiEnabled: aiEnabled() });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----

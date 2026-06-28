@@ -103,7 +103,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', sugerencias: 'Sugerencias', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   CURRENT_SEC = sec;
   localStorage.setItem(SEC_KEY, sec);
@@ -118,6 +118,7 @@ function renderSection(sec) {
   if (sec === 'resumen') renderResumen();
   else if (sec === 'cartera') renderCartera();
   else if (sec === 'sugerencias') renderSugerencias();
+  else if (sec === 'descubrir') renderDescubrir();
   else if (sec === 'tickers') renderCatalog();
   else if (sec === 'tenencias') renderManage();
   else if (sec === 'ventas') renderVentas();
@@ -641,6 +642,17 @@ async function seedDemoSeries() {
   } catch (e) { toast(e.message); }
 }
 
+function composeSuggestNote() {
+  const region = document.getElementById('sg-region').value;
+  const sector = document.getElementById('sg-sector').value;
+  const free = (document.getElementById('sg-note').value || '').trim();
+  const parts = [];
+  if (region && region !== 'Todas') parts.push('Priorizá la región ' + region);
+  if (sector && sector !== 'Todos') parts.push('priorizá el sector ' + sector);
+  if (free) parts.push(free);
+  return parts.join('. ');
+}
+
 async function computeSuggest() {
   const amount = parseFloat(document.getElementById('sg-amount').value);
   if (!(amount > 0)) return toast('Ingresá un monto válido');
@@ -654,7 +666,7 @@ async function computeSuggest() {
     maxPerType: parseFloat(document.getElementById('sg-maxtype').value) || null,
     maxTickers: parseInt(document.getElementById('sg-maxn').value, 10) || null,
     include,
-    note: document.getElementById('sg-note').value,
+    note: composeSuggestNote(),
   };
   const btn = document.getElementById('sg-go'); btn.disabled = true; btn.textContent = 'Calculando…';
   try {
@@ -728,6 +740,54 @@ function renderSuggestResult(data) {
       </tr>`).join('')}</tbody></table>` : '<div class="empty">No hay compras sugeridas con esos parámetros.</div>'}
     ${rows.length && rows.some(r => r.tech) ? TECH_LEGEND : ''}
     <div class="rationale">💡 <b>${explTitle}:</b> ${expl}</div>`;
+}
+
+// ---------- REPORTES ----------
+// ---------- DESCUBRIR ----------
+let DISC_ITEMS = [];
+function discFilters() {
+  return {
+    region: document.getElementById('dc-region').value,
+    sector: document.getElementById('dc-sector').value,
+    type: document.getElementById('dc-type').value,
+    note: document.getElementById('dc-note').value,
+  };
+}
+async function renderDescubrir() { await loadDiscover(false); }
+async function loadDiscover(useAI) {
+  const badge = document.getElementById('disc-badge');
+  if (badge) badge.textContent = CONFIG.aiEnabled ? '🤖 IA disponible' : 'IA no configurada';
+  const f = discFilters();
+  const el = document.getElementById('disc-result');
+  el.innerHTML = '<div class="empty">Buscando…</div>';
+  try {
+    let data;
+    if (useAI) data = await api('/discover', { method: 'POST', body: JSON.stringify(f) });
+    else data = await api(`/universe?region=${encodeURIComponent(f.region)}&sector=${encodeURIComponent(f.sector)}&type=${encodeURIComponent(f.type)}`);
+    DISC_ITEMS = data.items || [];
+    renderDiscoverResult(DISC_ITEMS, useAI ? data.aiRationale : null);
+  } catch (e) { toast(e.message); el.innerHTML = ''; }
+}
+function renderDiscoverResult(items, aiRationale) {
+  const el = document.getElementById('disc-result');
+  const aiHtml = aiRationale ? `<div class="rationale">🤖 <b>Análisis IA:</b> ${aiRationale}</div>` : '';
+  if (!items.length) { el.innerHTML = aiHtml + '<div class="empty">No hay candidatos nuevos con esos filtros (quizás ya están en tu catálogo).</div>'; return; }
+  el.innerHTML = aiHtml + `<table><thead><tr><th>Ticker</th><th>Región</th><th>Sector</th><th>Tipo</th><th class="num">Ratio</th><th class="num"></th></tr></thead><tbody>${items.map(u => `
+    <tr>
+      <td><b title="${u.name}">${u.ticker}</b> <span class="muted-sm">${u.name}</span></td>
+      <td>${u.region}</td><td>${u.sector}</td><td>${u.type}</td>
+      <td class="num">${u.ratio != null ? u.ratio : '<span class="muted-sm">verificar</span>'}</td>
+      <td class="num"><button class="btn" onclick='addFromUniverse(${JSON.stringify(u).replace(/'/g, "&#39;")})'>+ Agregar</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+async function addFromUniverse(u) {
+  try {
+    await api('/watchlist', { method: 'POST', body: JSON.stringify({ ticker: u.ticker, ratio: u.ratio }) });
+    toast(`${u.ticker} agregado al catálogo${u.ratio == null ? ' — verificá el ratio en Tickers' : ''}`);
+    await refreshCatalog();
+    DISC_ITEMS = DISC_ITEMS.filter(x => x.ticker !== u.ticker);
+    renderDiscoverResult(DISC_ITEMS, null);
+  } catch (e) { toast(e.message); }
 }
 
 // ---------- REPORTES ----------
@@ -974,6 +1034,9 @@ function bindEvents() {
   document.getElementById('btn-eye').onclick = toggleMoney;
   document.getElementById('sg-go').onclick = computeSuggest;
   document.getElementById('sg-all').onclick = toggleAllTech;
+  document.getElementById('dc-go').onclick = () => loadDiscover(false);
+  document.getElementById('dc-ai').onclick = () => loadDiscover(true);
+  ['dc-region', 'dc-sector', 'dc-type'].forEach(id => document.getElementById(id).addEventListener('change', () => loadDiscover(false)));
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('bf-clear').onclick = clearSeriesCache;

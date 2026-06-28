@@ -81,6 +81,17 @@ En el rationale aclará que la parte fundamental es cualitativa (conocimiento ge
   } catch (e) { _lastError = 'JSON inválido de la IA'; return null; }
 }
 
+// Analiza una lista de candidatos para descubrir tickers (cualitativo).
+export async function aiDiscover(candidates, { region, sector, note } = {}) {
+  if (!KEY || !candidates.length) return null;
+  const list = candidates.map(c => `${c.ticker} (${c.name}, ${c.region}, ${c.sector})`).join('; ');
+  const prompt =
+`Sos un analista. El usuario busca tickers para SUMAR a su cartera${region && region !== 'Todas' ? ` en la región ${region}` : ''}${sector && sector !== 'Todos' ? `, sector ${sector}` : ''}. Preferencia extra: "${note || '(ninguna)'}".
+De esta lista de CEDEARs disponibles, destacá los 3 a 6 más interesantes para ese objetivo y explicá brevemente por qué (contexto cualitativo basado en tu conocimiento general, no datos en vivo). Lista: ${list}.
+Respondé en 4-6 oraciones en español rioplatense, nombrando los tickers que destacás y 1 riesgo a tener en cuenta. Aclará que es información, no asesoramiento financiero.`;
+  return await callClaude(prompt, 500);
+}
+
 export async function aiRationale(plan, note) {
   if (!KEY) return null;
   const dist = plan.rows.filter(r => r.cedears > 0)
