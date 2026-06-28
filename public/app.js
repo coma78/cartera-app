@@ -890,6 +890,12 @@ async function runBackfill() {
   b.disabled = false; b.textContent = 'Reconstruir histórico';
 }
 
+async function clearSeriesCache() {
+  if (!confirm('¿Limpiar la caché de precios (incluidas las series de prueba)? En la próxima carga se bajan datos reales de FMP (necesita cupo disponible).')) return;
+  try { await api('/admin/clear-series', { method: 'POST', body: '{}' }); toast('Caché de precios limpiada. Reconstruí o calculá para bajar datos reales.'); }
+  catch (e) { toast(e.message); }
+}
+
 async function delReport(id) {
   if (!confirm('¿Borrar este reporte?')) return;
   try { await api('/reports/' + id, { method: 'DELETE' }); toast('Reporte borrado'); await loadReports(); renderReportsList(); }
@@ -929,6 +935,7 @@ function bindEvents() {
   document.getElementById('sg-all').onclick = toggleAllTech;
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
+  document.getElementById('bf-clear').onclick = clearSeriesCache;
   document.getElementById('sv-go').onclick = registerSale;
   document.getElementById('chk-daily-email').addEventListener('change', async function () {
     try {

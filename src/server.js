@@ -12,7 +12,7 @@ import {
   listReports, latestReport, deleteAllReports, deleteReport,
   getSetting, setSetting,
   listSales, sellFromLot, deleteSaleRestore,
-  saveSeries,
+  saveSeries, deleteAllSeries,
 } from './db.js';
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
@@ -20,7 +20,7 @@ import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn, lastAiError, aiModel, listModels } from './ai.js';
-import { signalsEnabled, getSignals, getHistory, momentumScore, lastSignalError } from './signals.js';
+import { signalsEnabled, getSignals, getHistory, momentumScore, lastSignalError, clearSeriesMemory } from './signals.js';
 import { computeTechnicals, techFactor, returnsFromSeries } from './technicals.js';
 import { reconstruct } from './backfill.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
@@ -304,6 +304,13 @@ app.delete('/api/reports/:id', wrap(async (req, res) => {
   await deleteReport(Number(req.params.id));
   res.json({ ok: true });
 }));
+// Limpiar caché de series de precios (para volver a datos reales)
+app.post('/api/admin/clear-series', wrap(async (_req, res) => {
+  await deleteAllSeries();
+  clearSeriesMemory();
+  res.json({ ok: true });
+}));
+
 // Reconstrucción histórica de snapshots
 app.post('/api/admin/backfill', wrap(async (req, res) => {
   const { from, granularity } = req.body || {};

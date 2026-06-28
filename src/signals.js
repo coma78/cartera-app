@@ -13,6 +13,7 @@ let _lastError = null;
 
 export function signalsEnabled() { return !!FMP_KEY; }
 export function lastSignalError() { return _lastError; }
+export function clearSeriesMemory() { _hist.clear(); _cache.clear(); }
 
 function num(x) { const n = Number(x); return Number.isFinite(n) ? Math.round(n * 100) / 100 : null; }
 

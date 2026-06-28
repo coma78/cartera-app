@@ -249,6 +249,9 @@ export async function getStoredSeries(ticker) {
   const { rows } = await query('SELECT series, updated_at FROM price_series WHERE ticker = $1', [ticker.toUpperCase().trim()]);
   return rows[0] || null;
 }
+export async function deleteAllSeries() {
+  await query('DELETE FROM price_series');
+}
 export async function saveSeries(ticker, series) {
   await query(
     `INSERT INTO price_series (ticker, series, updated_at) VALUES ($1, $2, now())
