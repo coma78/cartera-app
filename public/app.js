@@ -1053,10 +1053,6 @@ function bindEvents() {
   document.getElementById('dc-go').onclick = () => loadDiscover(false);
   document.getElementById('dc-ai').onclick = () => loadDiscover(true);
   ['dc-region', 'dc-sector', 'dc-type'].forEach(id => document.getElementById(id).addEventListener('change', () => loadDiscover(false)));
-  document.querySelectorAll('[data-dview]').forEach(b => b.onclick = () => {
-    document.querySelectorAll('[data-dview]').forEach(x => x.classList.remove('active'));
-    b.classList.add('active'); DISC_VIEW = b.dataset.dview; renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI);
-  });
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('bf-clear').onclick = clearSeriesCache;
@@ -1078,6 +1074,7 @@ function bindEvents() {
     if (b.dataset.dist) { DIST_MODE = b.dataset.dist; renderDist(); }
     if (b.dataset.evo) { EVO_MODE = b.dataset.evo; renderEvolution(); }
     if (b.dataset.evog) { EVO_GROUP = b.dataset.evog; renderEvolution(); }
+    if (b.dataset.dview) { DISC_VIEW = b.dataset.dview; renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI); }
   });
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
