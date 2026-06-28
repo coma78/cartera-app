@@ -235,6 +235,17 @@ app.post('/api/admin/seed-series-demo', wrap(async (_req, res) => {
   res.json({ seeded: n });
 }));
 
+// ---- Indicadores técnicos de TODO el catálogo (para "ver todos") ----
+app.get('/api/technicals', wrap(async (_req, res) => {
+  const cat = await listWatchlist();
+  const history = signalsEnabled() ? await getHistory(cat.map(w => w.ticker)) : {};
+  const items = cat.map(w => ({
+    ticker: w.ticker,
+    tech: history[w.ticker] ? computeTechnicals(history[w.ticker]) : null,
+  }));
+  res.json({ items, techInfo: { enabled: signalsEnabled(), count: Object.keys(history).length, error: lastSignalError() } });
+}));
+
 // ---- Diagnóstico FMP ----
 app.get('/api/suggest/diag', wrap(async (_req, res) => {
   if (!signalsEnabled()) return res.json({ enabled: false, msg: 'FMP_API_KEY no está cargada' });

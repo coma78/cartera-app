@@ -53,6 +53,24 @@ const pctStr = (n) => n === null || n === undefined ? '—' : (n > 0 ? '+' : '')
 const cls = (n) => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-AR') : '—';
 
+// Nombres de tickers (sobre todo ETFs) para el tooltip
+const NAMES = {
+  AVGO: 'Broadcom', BRKB: 'Berkshire Hathaway (clase B)', GOOGL: 'Alphabet (Google)',
+  JPM: 'JPMorgan Chase', MELI: 'MercadoLibre', META: 'Meta Platforms (Facebook/Instagram)',
+  MSFT: 'Microsoft', NU: 'Nu Holdings (Nubank)', PFE: 'Pfizer',
+  EEM: 'iShares MSCI Emerging Markets — mercados emergentes', EWZ: 'iShares MSCI Brazil — Brasil',
+  FXI: 'iShares China Large-Cap — China', VEA: 'Vanguard Developed Markets — desarrollados ex-EEUU',
+  XLV: 'Health Care Select Sector SPDR — sector salud (EEUU)',
+  QQQ: 'Invesco QQQ — índice Nasdaq 100', SPY: 'SPDR S&P 500 — índice S&P 500',
+  SPXL: 'Direxion S&P 500 Bull 3x — apalancado x3', TQQQ: 'ProShares UltraPro QQQ — Nasdaq 100 x3 (apalancado)',
+};
+function tName(t) {
+  const up = (t || '').toUpperCase().trim();
+  return NAMES[up] || (CATALOG.find(c => c.ticker === up)?.notes) || '';
+}
+// <b> del ticker con tooltip de nombre
+function tb(t) { const n = tName(t); return `<b${n ? ` title="${n}"` : ''}>${t}</b>`; }
+
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.remove('hidden');
@@ -388,7 +406,7 @@ function renderCartera() {
         <th class="num">Hoy</th><th class="num">P/G</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(r => `
         <tr>
-          <td><b>${r.ticker}</b> <span class="muted-sm">${r.type} · ${r.quantity} CEDEARs · ${r.lots} lote${r.lots > 1 ? 's' : ''}</span></td>
+          <td>${tb(r.ticker)} <span class="muted-sm">${r.type} · ${r.quantity} CEDEARs · ${r.lots} lote${r.lots > 1 ? 's' : ''}</span></td>
           <td class="num">${money(r.buy_price)}</td><td class="num">${money(r.price)}</td>
           <td class="num ${cls(r.changePct)}">${pctStr(r.changePct)}</td>
           <td class="num ${cls(r.plPct)}"><b>${pctStr(r.plPct)}</b></td>
@@ -400,7 +418,7 @@ function renderCartera() {
         <th class="num hide-sm">Fecha</th><th class="num">Hoy</th><th class="num">P/G</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(h => `
         <tr>
-          <td><b>${h.ticker}</b> <span class="muted-sm">${h.type} · ${h.quantity} CEDEARs · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
+          <td>${tb(h.ticker)} <span class="muted-sm">${h.type} · ${h.quantity} CEDEARs · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
           <td class="num">${money(h.buy_price)}</td><td class="num">${money(h.price)}</td>
           <td class="num hide-sm">${fmtDate(h.purchase_date)}</td>
           <td class="num ${cls(h.changePct)}">${pctStr(h.changePct)}</td>
@@ -445,7 +463,7 @@ function renderCatalog() {
     </tr></thead><tbody>${CATALOG.map(w => {
         const l = live[w.ticker];
         return `<tr>
-          <td><b>${w.ticker}</b></td><td>${tType(w.ticker)}</td><td class="num">${w.ratio}</td>
+          <td>${tb(w.ticker)}</td><td>${tType(w.ticker)}</td><td class="num">${w.ratio}</td>
           <td class="num hide-sm">${l ? money(l.price) : '—'}</td>
           <td class="num hide-sm ${l ? cls(l.changePct) : ''}">${l ? pctStr(l.changePct) : '—'}</td>
           <td class="num row-actions"><button title="Cambiar ratio (split)" onclick='openRatioChange(${JSON.stringify(w).replace(/'/g, "&#39;")})'>🔁</button><button title="Editar" onclick='openWatchForm(${JSON.stringify(w).replace(/'/g, "&#39;")})'>✏️</button><button title="Borrar" onclick="delWatch(${w.id})">🗑️</button></td>
@@ -463,7 +481,7 @@ function renderManage() {
       <th>Ticker</th><th class="num">Fecha</th><th class="num">Compra</th><th class="num">CEDEARs</th><th class="num hide-sm">Ratio</th><th class="num"></th>
     </tr></thead><tbody>${rows.map(h => `
       <tr>
-        <td><b>${h.ticker}</b></td>
+        <td>${tb(h.ticker)}</td>
         <td class="num">${fmtDate(h.purchase_date)}</td>
         <td class="num">${money(h.buy_price)}</td>
         <td class="num">${h.quantity}</td>
@@ -497,7 +515,7 @@ function renderVentas() {
       const r = Number(s.ratio) > 0 ? Number(s.ratio) : 1;
       const g = round2((Number(s.quantity) / r) * (Number(s.sell_price) - Number(s.buy_price)));
       return `<tr>
-        <td><b>${s.ticker}</b></td>
+        <td>${tb(s.ticker)}</td>
         <td class="num">${fmtDate(s.sell_date)}</td>
         <td class="num">${s.quantity}</td>
         <td class="num hide-sm">${money(s.buy_price)}</td>
@@ -562,6 +580,33 @@ function saveSuggestTickers() {
     try { SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ suggestTickers: sel }) }); }
     catch (e) { /* noop */ }
   }, 700);
+}
+
+// Precio de mercado (no se oculta con el ojito; es dato público)
+const px = (n) => n == null ? '—' : (CONFIG.currency || 'USD') + ' ' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+let TECH_ALL_OPEN = false;
+async function toggleAllTech() {
+  const cont = document.getElementById('tech-all');
+  const b = document.getElementById('sg-all');
+  if (TECH_ALL_OPEN) { cont.innerHTML = ''; TECH_ALL_OPEN = false; b.textContent = 'Ver análisis de todos'; return; }
+  b.disabled = true; b.textContent = 'Cargando…';
+  try {
+    const d = await api('/technicals');
+    let head = '';
+    if (d.techInfo && d.techInfo.enabled && d.techInfo.count === 0) head = `<div class="notice">Sin indicadores: FMP no devolvió datos${d.techInfo.error ? ` — ${d.techInfo.error}` : ''}.</div>`;
+    else if (d.techInfo && !d.techInfo.enabled) head = `<div class="muted-sm" style="margin:6px 0">Indicadores desactivados (falta FMP_API_KEY).</div>`;
+    const cards = (d.items || []).slice().sort((a, b2) => a.ticker.localeCompare(b2.ticker)).map(it => {
+      const t = it.tech;
+      return `<div class="tcard">
+        <div class="tcard-h">${tb(it.ticker)} <span class="muted-sm">${tType(it.ticker)}</span></div>
+        ${t ? `<div class="muted-sm" style="margin-bottom:4px">Precio: ${px(t.price)}</div>${techBadges(t)}` : '<div class="muted-sm">sin datos</div>'}
+      </div>`;
+    }).join('');
+    cont.innerHTML = head + `<div class="tgrid">${cards}</div>` + TECH_LEGEND;
+    TECH_ALL_OPEN = true; b.textContent = 'Ocultar análisis';
+  } catch (e) { toast(e.message); }
+  b.disabled = false;
 }
 
 async function seedDemoSeries() {
@@ -650,7 +695,7 @@ function renderSuggestResult(data) {
       <th>Ticker</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr>
-        <td><b>${r.ticker}</b> <span class="muted-sm">${r.type}</span>${techBadges(r.tech)}</td>
+        <td>${tb(r.ticker)} <span class="muted-sm">${r.type}</span>${techBadges(r.tech)}</td>
         <td class="num"><b>${r.cedears}</b></td>
         <td class="num"><b>${r.pctOfNew}%</b></td>
         <td class="num hide-sm">${money(r.cedearPrice)}</td>
@@ -881,7 +926,7 @@ function bindEvents() {
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('btn-eye').onclick = toggleMoney;
   document.getElementById('sg-go').onclick = computeSuggest;
-  document.getElementById('sg-demo').onclick = seedDemoSeries;
+  document.getElementById('sg-all').onclick = toggleAllTech;
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('sv-go').onclick = registerSale;
