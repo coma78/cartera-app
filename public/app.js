@@ -725,11 +725,28 @@ function renderSuggestResult(data) {
 }
 
 // ---------- REPORTES ----------
+let REP_PAGE = 1, REP_SIZE = 20;
+function repPrev() { if (REP_PAGE > 1) { REP_PAGE--; renderReportsList(); } }
+function repNext() { REP_PAGE++; renderReportsList(); }
+function repSetSize(v) { REP_SIZE = parseInt(v, 10) || 20; REP_PAGE = 1; renderReportsList(); }
 function renderReportsList() {
   const el = document.getElementById('reports-list');
   if (!REPORTS.length) { el.innerHTML = '<div class="empty">Todavía no se generó ningún reporte.</div>'; return; }
-  const shown = REPORTS.slice(0, 60);
-  const moreNote = REPORTS.length > shown.length ? `<div class="muted-sm" style="margin-top:6px">Mostrando 60 de ${REPORTS.length}. El gráfico de evolución usa todos.</div>` : '';
+  const total = REPORTS.length, pages = Math.max(1, Math.ceil(total / REP_SIZE));
+  if (REP_PAGE > pages) REP_PAGE = pages;
+  if (REP_PAGE < 1) REP_PAGE = 1;
+  const start = (REP_PAGE - 1) * REP_SIZE, shown = REPORTS.slice(start, start + REP_SIZE);
+  const from = start + 1, to = Math.min(start + REP_SIZE, total);
+  const pager = `<div class="pager">
+    <span class="muted-sm">Mostrando ${from}–${to} de ${total}</span>
+    <div class="pager-ctrls">
+      <label class="muted-sm">Por página
+        <select onchange="repSetSize(this.value)">${[10, 20, 50, 100].map(n => `<option value="${n}"${n === REP_SIZE ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      </label>
+      <button class="btn" onclick="repPrev()"${REP_PAGE <= 1 ? ' disabled' : ''}>‹</button>
+      <span class="muted-sm">Página ${REP_PAGE} / ${pages}</span>
+      <button class="btn" onclick="repNext()"${REP_PAGE >= pages ? ' disabled' : ''}>›</button>
+    </div></div>`;
   el.innerHTML = `<table><thead><tr><th>Fecha</th><th class="num">Valor</th><th class="num">Rendimiento</th><th class="num">Mail</th><th class="num"></th></tr></thead><tbody>${shown.map(r => `
     <tr>
       <td>${new Date(r.created_at).toLocaleString('es-AR')}</td>
@@ -737,7 +754,7 @@ function renderReportsList() {
       <td class="num ${cls(r.summary?.totalPlPct)}">${pctStr(r.summary?.totalPlPct)}</td>
       <td class="num">${r.emailed ? '✉️ enviado' : '—'}</td>
       <td class="num row-actions"><button title="Borrar" onclick="delReport(${r.id})">🗑️</button></td>
-    </tr>`).join('')}</tbody></table>${moreNote}`;
+    </tr>`).join('')}</tbody></table>${pager}`;
 }
 
 // ---------- Modal ----------
