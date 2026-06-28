@@ -206,7 +206,7 @@
               <select id="sg-region"><option>Todas</option><option>EEUU</option><option>Latam</option><option>Brasil</option><option>Argentina</option><option>China</option><option>Global</option></select>
             </label>
             <label>Priorizar sector
-              <select id="sg-sector"><option>Todos</option><option>Tecnología</option><option>Financiero</option><option>Salud</option><option>Energía</option><option>Consumo</option><option>Materiales</option><option>Índice</option></select>
+              <select id="sg-sector"><option>Todos</option><option>Defensivas</option><option>Tecnología</option><option>Financiero</option><option>Salud</option><option>Energía</option><option>Utilities</option><option>Consumo básico</option><option>Consumo discrecional</option><option>Materiales</option><option>Índice</option></select>
             </label>
             <button class="btn primary" id="sg-go">Calcular</button>
           </div>
@@ -230,7 +230,10 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Descubrir tickers</h2>
-            <span class="muted-sm" id="disc-badge"></span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="muted-sm" id="disc-badge"></span>
+              <div class="seg"><button class="seg-btn active" data-dview="lista">Lista</button><button class="seg-btn" data-dview="cards">Cards</button></div>
+            </div>
           </div>
           <div class="filters">
             <label>Región
@@ -240,7 +243,7 @@
             </label>
             <label>Sector
               <select id="dc-sector">
-                <option>Todos</option><option>Tecnología</option><option>Financiero</option><option>Salud</option><option>Energía</option><option>Consumo</option><option>Materiales</option><option>Industrial</option><option>Comunicaciones</option><option>Índice</option>
+                <option>Todos</option><option>Defensivas</option><option>Tecnología</option><option>Financiero</option><option>Salud</option><option>Energía</option><option>Utilities</option><option>Consumo básico</option><option>Consumo discrecional</option><option>Materiales</option><option>Industrial</option><option>Comunicaciones</option><option>Índice</option>
               </select>
             </label>
             <label>Tipo

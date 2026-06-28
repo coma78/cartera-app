@@ -745,6 +745,8 @@ function renderSuggestResult(data) {
 // ---------- REPORTES ----------
 // ---------- DESCUBRIR ----------
 let DISC_ITEMS = [];
+let DISC_VIEW = 'lista';
+let LAST_DISC_AI = null;
 function discFilters() {
   return {
     region: document.getElementById('dc-region').value,
@@ -769,16 +771,30 @@ async function loadDiscover(useAI) {
   } catch (e) { toast(e.message); el.innerHTML = ''; }
 }
 function renderDiscoverResult(items, aiRationale) {
+  LAST_DISC_AI = aiRationale ?? null;
   const el = document.getElementById('disc-result');
-  const aiHtml = aiRationale ? `<div class="rationale">🤖 <b>Análisis IA:</b> ${aiRationale}</div>` : '';
+  const aiHtml = LAST_DISC_AI ? `<div class="rationale">🤖 <b>Análisis IA:</b> ${LAST_DISC_AI}</div>` : '';
   if (!items.length) { el.innerHTML = aiHtml + '<div class="empty">No hay candidatos nuevos con esos filtros (quizás ya están en tu catálogo).</div>'; return; }
-  el.innerHTML = aiHtml + `<table><thead><tr><th>Ticker</th><th>Región</th><th>Sector</th><th>Tipo</th><th class="num">Ratio</th><th class="num"></th></tr></thead><tbody>${items.map(u => `
-    <tr>
-      <td><b title="${u.name}">${u.ticker}</b> <span class="muted-sm">${u.name}</span></td>
-      <td>${u.region}</td><td>${u.sector}</td><td>${u.type}</td>
-      <td class="num">${u.ratio != null ? u.ratio : '<span class="muted-sm">verificar</span>'}</td>
-      <td class="num"><button class="btn" onclick='addFromUniverse(${JSON.stringify(u).replace(/'/g, "&#39;")})'>+ Agregar</button></td>
-    </tr>`).join('')}</tbody></table>`;
+  const btn = (u) => `<button class="btn" onclick='addFromUniverse(${JSON.stringify(u).replace(/'/g, "&#39;")})'>+ Agregar</button>`;
+  let body;
+  if (DISC_VIEW === 'cards') {
+    body = `<div class="tgrid">${items.map(u => `
+      <div class="tcard">
+        <div class="tcard-h"><b title="${u.name}">${u.ticker}</b></div>
+        <div class="muted-sm" style="margin-bottom:6px">${u.name}</div>
+        <div class="tags"><span class="tag">${u.region}</span><span class="tag">${u.sector}</span><span class="tag">${u.type}</span><span class="tag">ratio ${u.ratio != null ? u.ratio : '?'}</span></div>
+        <div style="margin-top:8px">${btn(u)}</div>
+      </div>`).join('')}</div>`;
+  } else {
+    body = `<table><thead><tr><th>Ticker</th><th>Región</th><th>Sector</th><th>Tipo</th><th class="num">Ratio</th><th class="num"></th></tr></thead><tbody>${items.map(u => `
+      <tr>
+        <td><b title="${u.name}">${u.ticker}</b> <span class="muted-sm">${u.name}</span></td>
+        <td>${u.region}</td><td>${u.sector}</td><td>${u.type}</td>
+        <td class="num">${u.ratio != null ? u.ratio : '<span class="muted-sm">verificar</span>'}</td>
+        <td class="num">${btn(u)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+  el.innerHTML = aiHtml + body;
 }
 async function addFromUniverse(u) {
   try {
@@ -1037,6 +1053,10 @@ function bindEvents() {
   document.getElementById('dc-go').onclick = () => loadDiscover(false);
   document.getElementById('dc-ai').onclick = () => loadDiscover(true);
   ['dc-region', 'dc-sector', 'dc-type'].forEach(id => document.getElementById(id).addEventListener('change', () => loadDiscover(false)));
+  document.querySelectorAll('[data-dview]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-dview]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); DISC_VIEW = b.dataset.dview; renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI);
+  });
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('bf-clear').onclick = clearSeriesCache;
