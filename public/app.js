@@ -105,6 +105,7 @@ function startIdle() {
 // ---------- Navegación ----------
 const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
+  if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
   localStorage.setItem(SEC_KEY, sec);
   document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
@@ -115,6 +116,7 @@ function showSection(sec) {
   renderSection(sec);
 }
 function renderSection(sec) {
+  if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   if (sec === 'resumen') renderResumen();
   else if (sec === 'cartera') renderCartera();
   else if (sec === 'sugerencias') renderSugerencias();
@@ -642,6 +644,17 @@ async function seedDemoSeries() {
   } catch (e) { toast(e.message); }
 }
 
+async function addSuggested(ticker, ratio, ratioKnown, name) {
+  let r = ratio;
+  if (!ratioKnown) {
+    const v = prompt(`Ratio de ${ticker} (CEDEARs por acción). Verificalo en tu broker; si es acción local suele ser 1:`, '1');
+    if (v === null) return;
+    r = parseFloat(v) || 1;
+  }
+  try { await api('/watchlist', { method: 'POST', body: JSON.stringify({ ticker, ratio: r }) }); toast(`${ticker} agregado a preferidas ★`); await refreshCatalog(); }
+  catch (e) { toast(e.message); }
+}
+
 function composeSuggestNote() {
   const region = document.getElementById('sg-region').value;
   const sector = document.getElementById('sg-sector').value;
@@ -667,6 +680,10 @@ async function computeSuggest() {
     maxTickers: parseInt(document.getElementById('sg-maxn').value, 10) || null,
     include,
     note: composeSuggestNote(),
+    region: document.getElementById('sg-region').value,
+    sector: document.getElementById('sg-sector').value,
+    type: document.getElementById('sg-type').value,
+    includeNew: document.getElementById('sg-incnew').checked,
   };
   const btn = document.getElementById('sg-go'); btn.disabled = true; btn.textContent = 'Calculando…';
   try {
@@ -731,7 +748,7 @@ function renderSuggestResult(data) {
       <th>Ticker</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr>
-        <td>${tb(r.ticker)} <span class="muted-sm">${r.type}</span>${techBadges(r.tech)}</td>
+        <td>${r.preferida ? '★' : '🔎'} ${tb(r.ticker)} <span class="muted-sm">${r.type}${r.preferida ? '' : ' · nuevo'}</span>${r.preferida ? '' : ` <button class="btn" style="padding:2px 7px;font-size:12px" onclick='addSuggested(${JSON.stringify(r.ticker)},${r.ratio},${r.ratioKnown},${JSON.stringify(r.name || '')})'>+ Agregar</button>`}${techBadges(r.tech)}</td>
         <td class="num"><b>${r.cedears}</b></td>
         <td class="num"><b>${r.pctOfNew}%</b></td>
         <td class="num hide-sm">${money(r.cedearPrice)}</td>
@@ -1067,9 +1084,6 @@ function bindEvents() {
   document.getElementById('btn-eye').onclick = toggleMoney;
   document.getElementById('sg-go').onclick = computeSuggest;
   document.getElementById('sg-all').onclick = toggleAllTech;
-  document.getElementById('dc-go').onclick = () => loadDiscover(false);
-  document.getElementById('dc-ai').onclick = () => loadDiscover(true);
-  ['dc-region', 'dc-sector', 'dc-type'].forEach(id => document.getElementById(id).addEventListener('change', () => loadDiscover(false)));
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
   document.getElementById('bf-go').onclick = runBackfill;
   document.getElementById('bf-clear').onclick = clearSeriesCache;

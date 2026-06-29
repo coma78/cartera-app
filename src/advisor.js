@@ -152,6 +152,10 @@ export function computeSuggestion({ amount, items, prefs = {} }) {
       cedears, buyMoney: money,
       resultingValue: r2(curVal[t] + money),
       tech: (prefs.technicals && prefs.technicals[t]) ? prefs.technicals[t] : null,
+      preferida: i.preferida === true,
+      name: i.name || '',
+      ratio: i.ratio,
+      ratioKnown: i.ratioKnown !== false,
     });
   }
   const resTotal = V + used;

@@ -151,7 +151,7 @@ app.delete('/api/watchlist/:id', wrap(async (req, res) => {
 
 // ---- Sugerencias de inversión (motor de reglas + IA opcional) ----
 app.post('/api/suggest', wrap(async (req, res) => {
-  const { amount, risk, strategy, maxPerTicker, maxPerType, maxTickers, include, exclude, note } = req.body || {};
+  const { amount, risk, strategy, maxPerTicker, maxPerType, maxTickers, include, exclude, note, region, sector, type, includeNew } = req.body || {};
   const { summary } = await buildReport({ withNews: false });
 
   // Valor y P/G acumulado por ticker (de lo que ya tenés)
@@ -161,16 +161,26 @@ app.post('/api/suggest', wrap(async (req, res) => {
     g.value += h.positionValue || 0;
     g.cost += h.positionCost || 0;
   }
-  // Items elegibles = catálogo con cotización
+  // Items elegibles = catálogo (★ preferidas) con cotización
   let items = summary.watch.map(w => ({
-    ticker: w.ticker, type: w.type, price: w.price, ratio: w.ratio,
+    ticker: w.ticker, type: w.type, price: w.price, ratio: w.ratio, name: '',
+    preferida: true,
     currentValue: held[w.ticker] ? held[w.ticker].value : 0,
     plPct: held[w.ticker] && held[w.ticker].cost > 0 ? ((held[w.ticker].value - held[w.ticker].cost) / held[w.ticker].cost * 100) : null,
   }));
   if (Array.isArray(include) && include.length) items = items.filter(i => include.includes(i.ticker));
   if (Array.isArray(exclude) && exclude.length) items = items.filter(i => !exclude.includes(i.ticker));
 
-  // Una sola descarga de la serie histórica (FMP) -> momentum + técnicos.
+  // 🔎 Descubrimiento: sumar candidatos del universo según filtros (si hay región/sector/tipo o includeNew).
+  if (includeNew) {
+    const have = new Set(items.map(i => i.ticker));
+    for (const u of filterUniverse({ region, sector, type })) {
+      if (have.has(u.ticker)) continue;
+      items.push({ ticker: u.ticker, type: u.type, name: u.name, ratio: u.ratio || 1, ratioKnown: u.ratio != null, price: 0, currentValue: 0, plPct: null, preferida: false });
+    }
+  }
+
+  // Una sola descarga de la serie histórica (FMP) -> momentum + técnicos + precio de los nuevos.
   const history = signalsEnabled() ? await getHistory(items.map(i => i.ticker)) : {};
   const technicals = {}, momentum = {};
   for (const tk in history) {
@@ -178,6 +188,12 @@ app.post('/api/suggest', wrap(async (req, res) => {
     if (tech) technicals[tk] = { ...tech, techFactor: techFactor(tech) };
     momentum[tk] = returnsFromSeries(history[tk]);
   }
+  // Precio para los candidatos nuevos (o catálogo sin cotización): último cierre de FMP.
+  for (const it of items) {
+    if (!(it.price > 0) && technicals[it.ticker]) it.price = technicals[it.ticker].price;
+  }
+  // Descarto los que no tienen precio (no se pueden repartir)
+  items = items.filter(i => i.price > 0 || i.preferida);
 
   // Estrategias con análisis: 'ai' (Claude) o 'momentum' (datos de mercado FMP).
   let strat = strategy;
