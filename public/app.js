@@ -783,12 +783,13 @@ function renderDiscoverResult(items, aiRationale) {
         <div class="tcard-h"><b title="${u.name}">${u.ticker}</b></div>
         <div class="muted-sm" style="margin-bottom:6px">${u.name}</div>
         <div class="tags"><span class="tag">${u.region}</span><span class="tag">${u.sector}</span><span class="tag">${u.type}</span><span class="tag">ratio ${u.ratio != null ? u.ratio : '?'}</span></div>
+        ${u.tech ? techBadges(u.tech) : ''}
         <div style="margin-top:8px">${btn(u)}</div>
       </div>`).join('')}</div>`;
   } else {
     body = `<table><thead><tr><th>Ticker</th><th>Región</th><th>Sector</th><th>Tipo</th><th class="num">Ratio</th><th class="num"></th></tr></thead><tbody>${items.map(u => `
       <tr>
-        <td><b title="${u.name}">${u.ticker}</b> <span class="muted-sm">${u.name}</span></td>
+        <td><b title="${u.name}">${u.ticker}</b> <span class="muted-sm">${u.name}</span>${u.tech ? techBadges(u.tech) : ''}</td>
         <td>${u.region}</td><td>${u.sector}</td><td>${u.type}</td>
         <td class="num">${u.ratio != null ? u.ratio : '<span class="muted-sm">verificar</span>'}</td>
         <td class="num">${btn(u)}</td>

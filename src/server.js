@@ -273,17 +273,29 @@ app.delete('/api/sales/:id', wrap(async (req, res) => {
 }));
 
 // ---- Descubrir tickers (universo curado + IA) ----
+// Adjunta indicadores técnicos a los candidatos (cap 30 por búsqueda para no
+// saturar FMP; usa la cache de series).
+async function attachTech(items) {
+  if (!signalsEnabled() || !items.length) return items;
+  const subset = items.slice(0, 30).map(i => i.ticker);
+  const history = await getHistory(subset);
+  const tech = {};
+  for (const t in history) { const x = computeTechnicals(history[t]); if (x) tech[t] = x; }
+  return items.map(u => ({ ...u, tech: tech[u.ticker] || null }));
+}
 app.get('/api/universe', wrap(async (req, res) => {
   const { region, sector, type } = req.query;
   const cat = new Set((await listWatchlist()).map(w => w.ticker));
-  const items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
-  res.json({ items });
+  let items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
+  items = await attachTech(items);
+  res.json({ items, techInfo: { enabled: signalsEnabled(), error: lastSignalError() } });
 }));
 app.post('/api/discover', wrap(async (req, res) => {
   const { region, sector, type, note } = req.body || {};
   const cat = new Set((await listWatchlist()).map(w => w.ticker));
-  const items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
+  let items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
   const ai = await aiDiscover(items, { region, sector, note });
+  items = await attachTech(items);
   res.json({ items, aiRationale: ai, aiEnabled: aiEnabled() });
 }));
 
