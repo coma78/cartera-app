@@ -296,7 +296,7 @@ app.post('/api/discover', wrap(async (req, res) => {
   let items = filterUniverse({ region, sector, type }).filter(u => !cat.has(u.ticker));
   const ai = await aiDiscover(items, { region, sector, note });
   items = await attachTech(items);
-  res.json({ items, aiRationale: ai, aiEnabled: aiEnabled() });
+  res.json({ items, aiRationale: ai, aiEnabled: aiEnabled(), techInfo: { enabled: signalsEnabled(), error: lastSignalError() } });
 }));
 
 // ---- Dashboard en vivo (precios + analisis, sin enviar mail) ----

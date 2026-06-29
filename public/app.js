@@ -747,6 +747,7 @@ function renderSuggestResult(data) {
 let DISC_ITEMS = [];
 let DISC_VIEW = 'lista';
 let LAST_DISC_AI = null;
+let LAST_DISC_TECH = null;
 function discFilters() {
   return {
     region: document.getElementById('dc-region').value,
@@ -767,6 +768,7 @@ async function loadDiscover(useAI) {
     if (useAI) data = await api('/discover', { method: 'POST', body: JSON.stringify(f) });
     else data = await api(`/universe?region=${encodeURIComponent(f.region)}&sector=${encodeURIComponent(f.sector)}&type=${encodeURIComponent(f.type)}`);
     DISC_ITEMS = data.items || [];
+    LAST_DISC_TECH = data.techInfo || null;
     renderDiscoverResult(DISC_ITEMS, useAI ? data.aiRationale : null);
   } catch (e) { toast(e.message); el.innerHTML = ''; }
 }
@@ -775,6 +777,14 @@ function renderDiscoverResult(items, aiRationale) {
   const el = document.getElementById('disc-result');
   const aiHtml = LAST_DISC_AI ? `<div class="rationale">🤖 <b>Análisis IA:</b> ${LAST_DISC_AI}</div>` : '';
   if (!items.length) { el.innerHTML = aiHtml + '<div class="empty">No hay candidatos nuevos con esos filtros (quizás ya están en tu catálogo).</div>'; return; }
+  // Aviso si no hay indicadores (FMP)
+  let techNote = '';
+  const anyTech = items.some(i => i.tech);
+  const ti = LAST_DISC_TECH;
+  if (!anyTech && ti) {
+    if (!ti.enabled) techNote = '<div class="muted-sm" style="margin:4px 0 8px">Indicadores técnicos desactivados (falta FMP_API_KEY).</div>';
+    else techNote = `<div class="notice">Sin indicadores técnicos por ahora${ti.error ? ` — ${ti.error}` : ' (FMP no devolvió datos para estos tickers)'}.</div>`;
+  }
   const btn = (u) => `<button class="btn" onclick='addFromUniverse(${JSON.stringify(u).replace(/'/g, "&#39;")})'>+ Agregar</button>`;
   let body;
   if (DISC_VIEW === 'cards') {
@@ -795,15 +805,21 @@ function renderDiscoverResult(items, aiRationale) {
         <td class="num">${btn(u)}</td>
       </tr>`).join('')}</tbody></table>`;
   }
-  el.innerHTML = aiHtml + body;
+  el.innerHTML = aiHtml + techNote + body;
 }
 async function addFromUniverse(u) {
+  let ratio = u.ratio;
+  if (ratio == null) {
+    const v = prompt(`Ratio de ${u.ticker} (CEDEARs por acción). Verificalo en tu broker. Si es una acción local (ej. argentina) suele ser 1:`, '1');
+    if (v === null) return; // canceló
+    ratio = parseFloat(v) || 1;
+  }
   try {
-    await api('/watchlist', { method: 'POST', body: JSON.stringify({ ticker: u.ticker, ratio: u.ratio }) });
-    toast(`${u.ticker} agregado al catálogo${u.ratio == null ? ' — verificá el ratio en Tickers' : ''}`);
+    await api('/watchlist', { method: 'POST', body: JSON.stringify({ ticker: u.ticker, ratio }) });
+    toast(`${u.ticker} agregado al catálogo (ratio ${ratio})`);
     await refreshCatalog();
     DISC_ITEMS = DISC_ITEMS.filter(x => x.ticker !== u.ticker);
-    renderDiscoverResult(DISC_ITEMS, null);
+    renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI);
   } catch (e) { toast(e.message); }
 }
 
