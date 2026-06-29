@@ -52,7 +52,15 @@ const money = (n) => {
 };
 const pctStr = (n) => n === null || n === undefined ? '—' : (n > 0 ? '+' : '') + round2(n) + '%';
 const cls = (n) => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-AR') : '—';
+// Formatea una fecha-solo (YYYY-MM-DD o ISO) SIN corrimiento de zona horaria.
+const fmtDate = (d) => {
+  if (!d) return '—';
+  const s = String(d);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  const dt = new Date(d);
+  return isNaN(dt) ? '—' : dt.toLocaleDateString('es-AR');
+};
 
 // Nombres de tickers (sobre todo ETFs) para el tooltip
 const NAMES = {
