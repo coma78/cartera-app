@@ -3,7 +3,8 @@ const TOKEN_KEY = 'cartera_token';
 const SEC_KEY = 'cartera_sec';
 let CONFIG = {};
 let RATIOS = {};
-const ETFS = new Set(['SPY', 'QQQ', 'EEM', 'EWZ', 'FXI', 'VEA', 'XLV', 'SPXL', 'TQQQ', 'DIA', 'IWM', 'EFA', 'ARKK', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV']);
+const ETFS = new Set(['SPY', 'QQQ', 'EEM', 'EWZ', 'FXI', 'VEA', 'XLV', 'SPXL', 'TQQQ', 'DIA', 'IWM', 'EFA', 'ARKK', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV', 'UPRO', 'SOXL', 'TECL', 'XLP', 'XLU']);
+const LEVERAGED = new Set(['TQQQ', 'SPXL', 'UPRO', 'SOXL', 'TECL', 'SQQQ', 'TNA', 'FAS', 'LABU', 'SPXS']);
 const tType = (t) => ETFS.has((t || '').toUpperCase()) ? 'ETF' : 'Acción';
 
 let HOLDINGS = [];
@@ -202,7 +203,10 @@ function clearFilters() {
 }
 function applyFilters(lots, f) {
   return lots.filter(h => {
-    if (f.type && h.type !== f.type) return false;
+    if (f.type) {
+      if (f.type === 'ETF apalancado') { if (!(h.type === 'ETF' && LEVERAGED.has(h.ticker))) return false; }
+      else if (h.type !== f.type) return false;
+    }
     if (f.ticker && h.ticker !== f.ticker) return false;
     const ymd = h.purchase_date ? String(h.purchase_date).slice(0, 10) : '';
     if (f.year && ymd.slice(0, 4) !== f.year) return false;

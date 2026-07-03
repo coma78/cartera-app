@@ -73,6 +73,9 @@ const RAW = [
   ['XLK', 'Sector Tecnología (SPDR)', 'EEUU', 'Tecnología', 'ETF'],
   ['SPXL', 'S&P 500 x3 (apalancado)', 'EEUU', 'Índice', 'ETF'],
   ['TQQQ', 'Nasdaq 100 x3 (apalancado)', 'EEUU', 'Índice', 'ETF'],
+  ['UPRO', 'S&P 500 x3 (ProShares)', 'EEUU', 'Índice', 'ETF'],
+  ['SOXL', 'Semiconductores x3 (Direxion)', 'EEUU', 'Tecnología', 'ETF'],
+  ['TECL', 'Tecnología x3 (Direxion)', 'EEUU', 'Tecnología', 'ETF'],
   // ---- Brasil ----
   ['VALE', 'Vale (minería)', 'Brasil', 'Materiales', 'Acción'],
   ['PBR', 'Petrobras', 'Brasil', 'Energía', 'Acción'],
@@ -118,6 +121,8 @@ export const CEDEAR_UNIVERSE = RAW.map(([t, n, r, s, y]) => ({
 const LATAM = new Set(['Brasil', 'Argentina', 'México', 'Chile', 'Latam']);
 // "Defensivas" = sectores tradicionalmente defensivos.
 const DEFENSIVE = new Set(['Salud', 'Consumo básico', 'Utilities']);
+// ETFs apalancados (2x/3x, incluidos inversos).
+export const LEVERAGED = new Set(['TQQQ', 'SPXL', 'UPRO', 'SOXL', 'TECL', 'SQQQ', 'TNA', 'FAS', 'LABU', 'SPXS']);
 
 export function filterUniverse({ region, sector, type } = {}) {
   return CEDEAR_UNIVERSE.filter((u) => {
@@ -129,7 +134,10 @@ export function filterUniverse({ region, sector, type } = {}) {
       if (sector === 'Defensivas') { if (!DEFENSIVE.has(u.sector)) return false; }
       else if (u.sector !== sector) return false;
     }
-    if (type && type !== 'Todos' && u.type !== type) return false;
+    if (type && type !== 'Todos') {
+      if (type === 'ETF apalancado') { if (!(u.type === 'ETF' && LEVERAGED.has(u.ticker))) return false; }
+      else if (u.type !== type) return false;
+    }
     return true;
   });
 }
