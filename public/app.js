@@ -418,6 +418,7 @@ function renderCartera() {
   const f = getFilters();
   const filtered = applyFilters(HOLDINGS, f);
   const t = totalsOf(filtered);
+  const wpct = (v) => (v != null && t.value > 0) ? round2((v / t.value) * 100) + '%' : '—';
   const rows = f.view === 'consolidated' ? consolidate(filtered)
     : filtered.slice().sort((a, b) => (b.purchase_date || '').localeCompare(a.purchase_date || ''));
   LAST_CARTERA = { rows, view: f.view };
@@ -438,19 +439,20 @@ function renderCartera() {
   } else if (f.view === 'consolidated') {
     el.innerHTML = `<table><thead><tr>
         <th>Ticker</th><th class="num">Compra prom.</th><th class="num">Actual</th>
-        <th class="num">Hoy</th><th class="num">P/G</th><th class="num hide-sm">Valor</th>
+        <th class="num">Hoy</th><th class="num">P/G</th><th class="num">Peso</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(r => `
         <tr>
           <td>${tb(r.ticker)} <span class="muted-sm">${r.type} · ${r.quantity} CEDEARs · ${r.lots} lote${r.lots > 1 ? 's' : ''}</span></td>
           <td class="num">${money(r.buy_price)}</td><td class="num">${money(r.price)}</td>
           <td class="num ${cls(r.changePct)}">${pctStr(r.changePct)}</td>
           <td class="num ${cls(r.plPct)}"><b>${pctStr(r.plPct)}</b></td>
+          <td class="num"><b>${wpct(r.positionValue)}</b></td>
           <td class="num hide-sm">${money(r.positionValue)}</td>
         </tr>`).join('')}</tbody></table>`;
   } else {
     el.innerHTML = `<table><thead><tr>
         <th>Ticker</th><th class="num">Compra</th><th class="num">Actual</th>
-        <th class="num hide-sm">Fecha</th><th class="num">Hoy</th><th class="num">P/G</th><th class="num hide-sm">Valor</th>
+        <th class="num hide-sm">Fecha</th><th class="num">Hoy</th><th class="num">P/G</th><th class="num">Peso</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(h => `
         <tr>
           <td>${tb(h.ticker)} <span class="muted-sm">${h.type} · ${h.quantity} CEDEARs · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
@@ -458,6 +460,7 @@ function renderCartera() {
           <td class="num hide-sm">${fmtDate(h.purchase_date)}</td>
           <td class="num ${cls(h.changePct)}">${pctStr(h.changePct)}</td>
           <td class="num ${cls(h.plPct)}"><b>${pctStr(h.plPct)}</b></td>
+          <td class="num"><b>${wpct(h.positionValue)}</b></td>
           <td class="num hide-sm">${h.positionValue !== null ? money(h.positionValue) : '—'}</td>
         </tr>`).join('')}</tbody></table>`;
   }
