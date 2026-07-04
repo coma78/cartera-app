@@ -18,6 +18,7 @@ let CURRENT_SEC = 'resumen';
 let DIST_MODE = 'ticker';
 let EVO_MODE = 'mercado';
 let EVO_GROUP = 'dia';
+let WL_MODE = 'pct';
 let LAST_CARTERA = { rows: [], view: 'lots' };
 let LAST_SUGGEST = null;
 const CHARTS = {};
@@ -291,19 +292,25 @@ function renderDist() {
 }
 
 function renderWinLoss() {
-  const rows = consolidate(HOLDINGS).filter(r => r.plPct !== null);
-  const sorted = [...rows].sort((a, b) => b.plPct - a.plPct);
+  const usd = WL_MODE === 'usd';
+  const key = usd ? 'plAbs' : 'plPct';
+  const rows = consolidate(HOLDINGS).filter(r => r[key] != null);
+  const sorted = [...rows].sort((a, b) => b[key] - a[key]);
   const top = sorted.slice(0, 5), bottom = sorted.slice(-5).filter(x => !top.includes(x));
   const sel = [...top, ...bottom];
   drawChart('wl', 'chart-wl', {
     type: 'bar',
     data: {
       labels: sel.map(r => r.ticker),
-      datasets: [{ data: sel.map(r => r.plPct), backgroundColor: sel.map(r => r.plPct >= 0 ? '#0a7d33' : '#c0271a') }],
+      datasets: [{ data: sel.map(r => r[key]), backgroundColor: sel.map(r => r[key] >= 0 ? '#0a7d33' : '#c0271a') }],
     },
     options: {
-      indexAxis: 'y', plugins: { legend: { display: false } }, maintainAspectRatio: false,
-      scales: { x: { ticks: { callback: v => v + '%' } } },
+      indexAxis: 'y', maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => usd ? money(ctx.parsed.x) : ctx.parsed.x + '%' } },
+      },
+      scales: { x: { ticks: { display: usd ? !HIDE_MONEY : true, callback: v => usd ? v : v + '%' } } },
     },
   });
 }
@@ -1120,6 +1127,7 @@ function bindEvents() {
     if (b.dataset.dist) { DIST_MODE = b.dataset.dist; renderDist(); }
     if (b.dataset.evo) { EVO_MODE = b.dataset.evo; renderEvolution(); }
     if (b.dataset.evog) { EVO_GROUP = b.dataset.evog; renderEvolution(); }
+    if (b.dataset.wl) { WL_MODE = b.dataset.wl; renderWinLoss(); }
     if (b.dataset.dview) { DISC_VIEW = b.dataset.dview; renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI); }
   });
   document.getElementById('btn-run').onclick = async function () {
