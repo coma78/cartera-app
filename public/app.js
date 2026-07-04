@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { resumen: 'Resumen', cartera: 'Cartera', rentafija: 'Renta fija', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos', resumen: 'Resumen', cartera: 'Cartera', rentafija: 'Renta fija', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -129,8 +129,9 @@ function showSection(sec) {
   renderSection(sec);
 }
 function renderSection(sec) {
-  if (!document.getElementById('sec-' + sec)) sec = 'resumen';
-  if (sec === 'resumen') renderResumen();
+  if (!document.getElementById('sec-' + sec)) sec = 'rendimientos';
+  if (sec === 'rendimientos') renderRendimientos();
+  else if (sec === 'resumen') renderResumen();
   else if (sec === 'cartera') renderCartera();
   else if (sec === 'rentafija') renderRentaFija();
   else if (sec === 'sugerencias') renderSugerencias();
@@ -1165,13 +1166,20 @@ async function loadRfCons() {
   try { RF_CONS = await api('/rf/consolidated'); } catch (e) { RF_CONS = null; }
 }
 
+// Sección "Rendimientos": cartera total consolidada (variable + fija).
+async function renderRendimientos() {
+  const el = document.getElementById('rend-content');
+  if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:20px 4px">Cargando…</div>';
+  await loadRfCons();
+  rfRenderConsolidado(el);
+}
+
+// Sección "Renta fija": detalle de ONs y bonos + su ABM.
 async function renderRentaFija() {
-  document.querySelectorAll('#sec-rentafija .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.rfview === RF_VIEW));
   const el = document.getElementById('rf-content');
   if (!el) return;
   el.innerHTML = '<div class="muted-sm" style="padding:20px 4px">Cargando…</div>';
-  if (RF_VIEW === 'variable') return rfRenderVariable(el);
-  if (RF_VIEW === 'consolidado') { await loadRfCons(); return rfRenderConsolidado(el); }
   await loadRf();
   rfRenderFija(el);
 }
@@ -1298,11 +1306,11 @@ function rfRenderConsolidado(el) {
   if ((c.monthly || []).length) {
     html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Renta a cobrar por mes</h2></div>
       <div class="muted-sm" style="margin:-4px 0 6px">Sólo aplica a la parte de renta fija</div>
-      <div class="chart-wrap" style="height:200px"><canvas id="rf-chart-monthly"></canvas></div>`;
+      <div class="chart-wrap" style="height:200px"><canvas id="rf-cons-monthly"></canvas></div>`;
   }
   el.innerHTML = html;
   rfDonut('rf-chart-donut', c);
-  if ((c.monthly || []).length) rfMonthlyChart('rf-chart-monthly', c.monthly);
+  if ((c.monthly || []).length) rfMonthlyChart('rf-cons-monthly', c.monthly);
 }
 function rfClassRow(color, label, v, peso) {
   return `<div style="display:flex;align-items:center;gap:8px">
@@ -1462,7 +1470,7 @@ function openRfTradeForm() {
   setEye();
   startIdle();
   try { RATIOS = await api('/ratios'); } catch (e) { RATIOS = {}; }
-  CURRENT_SEC = localStorage.getItem(SEC_KEY) || 'resumen';
+  CURRENT_SEC = localStorage.getItem(SEC_KEY) || 'rendimientos';
   await loadAll();
   showSection(CURRENT_SEC);
 })();

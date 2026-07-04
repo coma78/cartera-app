@@ -20,8 +20,9 @@
     <aside class="sidebar">
       <div class="brand">📈 Car te re ar</div>
       <nav id="nav">
-        <a class="nav-item active" data-sec="resumen">📊 Resumen</a>
+        <a class="nav-item active" data-sec="rendimientos">📈 Rendimientos</a>
         <div class="nav-group">Renta variable</div>
+        <a class="nav-item" data-sec="resumen">📊 Resumen</a>
         <a class="nav-item" data-sec="cartera">💼 Cartera</a>
         <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
         <a class="nav-item" data-sec="tickers">🏷️ Tickers</a>
@@ -48,8 +49,22 @@
         <button id="btn-run" class="btn primary">Generar reporte ahora</button>
       </header>
 
+      <!-- RENDIMIENTOS (cartera total: variable + fija) -->
+      <section id="sec-rendimientos" class="section">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Rendimiento total</h2>
+            <span class="muted-sm">Renta variable + renta fija</span>
+          </div>
+          <div id="rend-content"></div>
+          <p class="disclaimer" style="padding:0">
+            Información para tu decisión, no asesoramiento financiero. Verificá los datos antes de operar.
+          </p>
+        </div>
+      </section>
+
       <!-- RESUMEN -->
-      <section id="sec-resumen" class="section">
+      <section id="sec-resumen" class="section hidden">
         <div class="cards">
           <div class="card"><div class="card-label">Valor total</div><div class="card-value" id="s-value">—</div></div>
           <div class="card"><div class="card-label">Resultado</div><div class="card-value" id="s-pl">—</div></div>
@@ -189,11 +204,6 @@
               <button class="btn" id="rf-refresh" title="Traer cotizaciones de data912">🔄 Actualizar precios</button>
               <button class="btn primary" id="rf-add" title="Agregar una compra/venta de ON o bono">＋ Agregar</button>
             </div>
-          </div>
-          <div class="seg" style="margin-bottom:12px">
-            <button class="seg-btn" data-rfview="variable">Renta variable</button>
-            <button class="seg-btn active" data-rfview="fija">Renta fija</button>
-            <button class="seg-btn" data-rfview="consolidado">Consolidado</button>
           </div>
           <div id="rf-content"></div>
           <p class="disclaimer" style="padding:0">
