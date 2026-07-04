@@ -377,8 +377,11 @@ app.get('/api/reports/latest', wrap(async (_req, res) => {
 async function computeRf() {
   const [trades, prices, payments] = await Promise.all([listRfTrades(), listRfPrices(), listRfPayments()]);
   const today = new Date().toISOString().slice(0, 10);
-  const { rows, totals } = computePortfolio({ trades, prices, payments, today });
-  return { rows, totals, prices, payments, today };
+  // El cronograma define la tenencia vigente: si hay pagos cargados, sólo se
+  // consideran esas especies (las que ya no tenés no figuran).
+  const restrictTo = payments.length ? new Set(payments.map((p) => String(p.ticker).toUpperCase().trim())) : null;
+  const { rows, totals } = computePortfolio({ trades, prices, payments, today, restrictTo });
+  return { rows, totals, prices, payments, today, restrictTo };
 }
 
 // Importar boletos del broker (una vez / re-sincronización total).

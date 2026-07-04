@@ -125,13 +125,23 @@ export function enrichTrades(rawTrades) {
 // trades: [{ ticker, clase, emisor, side('COMPRA'|'VENTA'), cantidad, precio_usd, neto_usd, fecha }]
 // prices: { TICKER: { price, source, updated_at } }  (precio actual en USD par)
 // payments: [{ ticker, fecha(YYYY-MM-DD), renta, amortizacion, total }]
-export function computePortfolio({ trades = [], prices = {}, payments = [], today } = {}) {
+// restrictTo (opcional): Set de tickers vigentes (los del cronograma). Si se
+// pasa, sólo se consideran esas especies (más las cargadas a mano), así las
+// ONs/bonos que ya no tenés desaparecen al subir un cronograma nuevo.
+export function computePortfolio({ trades = [], prices = {}, payments = [], today, restrictTo = null } = {}) {
   const hoy = today || new Date().toISOString().slice(0, 10);
+
+  // Tickers agregados a mano: siempre se muestran aunque no estén en el cronograma.
+  const manualTickers = new Set(trades.filter((t) => t.source === 'manual').map((t) => t.ticker));
+  const allowed = restrictTo && restrictTo.size
+    ? (tk) => restrictTo.has(tk) || manualTickers.has(tk)
+    : () => true;
 
   // Agrupar boletos por ticker.
   const byTicker = {};
   for (const t of trades) {
     if (!isRF(t.clase)) continue;
+    if (!allowed(t.ticker)) continue;
     (byTicker[t.ticker] ??= []).push(t);
   }
 
