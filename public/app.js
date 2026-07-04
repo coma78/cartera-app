@@ -461,7 +461,7 @@ function renderCartera() {
         <th class="num">Hoy</th><th class="num">P/G</th><th class="num">Peso</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(r => `
         <tr>
-          <td>${tb(r.ticker)} <span class="muted-sm">${r.type} · ${r.quantity} CEDEARs · ${r.lots} lote${r.lots > 1 ? 's' : ''}</span></td>
+          <td>${tb(r.ticker)} <span class="muted-sm">${r.type} · ${r.quantity} nominales · ${r.lots} lote${r.lots > 1 ? 's' : ''}</span></td>
           <td class="num">${money(r.buy_price)}</td><td class="num">${money(r.price)}</td>
           <td class="num ${cls(r.changePct)}">${pctStr(r.changePct)}</td>
           <td class="num ${cls(r.plPct)}"><b>${pctStr(r.plPct)}</b></td>
@@ -474,7 +474,7 @@ function renderCartera() {
         <th class="num hide-sm">Fecha</th><th class="num">Hoy</th><th class="num">P/G</th><th class="num">Peso</th><th class="num hide-sm">Valor</th>
       </tr></thead><tbody>${pageRows.map(h => `
         <tr>
-          <td>${tb(h.ticker)} <span class="muted-sm">${h.type} · ${h.quantity} CEDEARs · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
+          <td>${tb(h.ticker)} <span class="muted-sm">${h.type} · ${h.quantity} nominales · ratio ${h.ratio}</span>${tagsHtml(h.observations)}</td>
           <td class="num">${money(h.buy_price)}</td><td class="num">${money(h.price)}</td>
           <td class="num hide-sm">${fmtDate(h.purchase_date)}</td>
           <td class="num ${cls(h.changePct)}">${pctStr(h.changePct)}</td>
@@ -531,19 +531,28 @@ function renderCatalog() {
 // ---------- TENENCIAS (gestión) ----------
 function renderManage() {
   const el = document.getElementById('manage-table');
-  if (!HOLDINGS.length) { el.innerHTML = '<div class="empty">No hay tenencias. Usá “Cargar mis compras”, “Importar lista” o “+ Agregar tenencia”.</div>'; return; }
-  const rows = HOLDINGS.slice().sort((a, b) => (b.purchase_date || '').localeCompare(a.purchase_date || ''));
-  el.innerHTML = `<div class="muted-sm" style="margin-bottom:8px">${HOLDINGS.length} tenencias cargadas</div>
+  const compras = (HOLDINGS || []).map(h => ({
+    fecha: h.purchase_date, ticker: h.ticker, op: 'COMPRA', nominales: h.quantity, precio: h.buy_price,
+    sub: `${tType(h.ticker)} · ratio ${h.ratio}`,
+    actions: `<button onclick='openHoldingForm(${JSON.stringify(h).replace(/'/g, "&#39;")})'>✏️</button><button onclick="delHolding(${h.id})">🗑️</button>`,
+  }));
+  const ventas = (SALES || []).map(s => ({
+    fecha: s.sell_date, ticker: s.ticker, op: 'VENTA', nominales: s.quantity, precio: s.sell_price,
+    sub: 'venta', actions: `<button title="Borrar (devuelve la cantidad)" onclick="delSale(${s.id})">🗑️</button>`,
+  }));
+  const all = [...compras, ...ventas].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+  if (!all.length) { el.innerHTML = '<div class="empty">No hay movimientos. Usá “Importar lista” o “+ Agregar tenencia”.</div>'; return; }
+  el.innerHTML = `<div class="muted-sm" style="margin-bottom:8px">${compras.length} compras · ${ventas.length} ventas</div>
     <table><thead><tr>
-      <th>Ticker</th><th class="num">Fecha</th><th class="num">Compra</th><th class="num">CEDEARs</th><th class="num hide-sm">Ratio</th><th class="num"></th>
-    </tr></thead><tbody>${rows.map(h => `
+      <th>Ticker</th><th class="num">Fecha</th><th>Op</th><th class="num">Nominales</th><th class="num">Precio</th><th class="num"></th>
+    </tr></thead><tbody>${all.map(m => `
       <tr>
-        <td>${tb(h.ticker)}</td>
-        <td class="num">${fmtDate(h.purchase_date)}</td>
-        <td class="num">${money(h.buy_price)}</td>
-        <td class="num">${h.quantity}</td>
-        <td class="num hide-sm">${h.ratio}</td>
-        <td class="num row-actions"><button onclick='openHoldingForm(${JSON.stringify(h).replace(/'/g, "&#39;")})'>✏️</button><button onclick="delHolding(${h.id})">🗑️</button></td>
+        <td>${tb(m.ticker)} <span class="muted-sm">${m.sub}</span></td>
+        <td class="num">${fmtDate(m.fecha)}</td>
+        <td><span class="${m.op === 'VENTA' ? 'neg' : 'pos'}">${m.op === 'VENTA' ? 'Venta' : 'Compra'}</span></td>
+        <td class="num">${m.nominales}</td>
+        <td class="num">${money(m.precio)}</td>
+        <td class="num row-actions">${m.actions}</td>
       </tr>`).join('')}</tbody></table>`;
 }
 
@@ -553,7 +562,7 @@ function renderVentas() {
   const lots = HOLDINGS.filter(h => Number(h.quantity) > 0)
     .sort((a, b) => a.ticker.localeCompare(b.ticker) || String(a.purchase_date || '').localeCompare(String(b.purchase_date || '')));
   sel.innerHTML = lots.length
-    ? lots.map(h => `<option value="${h.id}">${h.ticker} · ${fmtDate(h.purchase_date)} · ${h.quantity} CEDEARs · compra ${money(h.buy_price)}</option>`).join('')
+    ? lots.map(h => `<option value="${h.id}">${h.ticker} · ${fmtDate(h.purchase_date)} · ${h.quantity} nominales · compra ${money(h.buy_price)}</option>`).join('')
     : '<option value="">No hay tenencias para vender</option>';
   const dEl = document.getElementById('sv-date');
   if (!dEl.value) dEl.value = new Date().toISOString().slice(0, 10);
@@ -1253,7 +1262,7 @@ function rfRenderFija(el) {
 
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Tenencias</h2></div>`;
   html += rfTable(
-    ['Ticker', 'VN', 'P.compra', 'P.actual', 'Valor', 'Gan. capital', 'Renta cobr.'],
+    ['Ticker', 'Nominales', 'Compra', 'Actual', 'Valor', 'Gan. capital', 'Renta cobr.'],
     (d.rows || []).map(r => [
       `${tb(r.ticker)} <span class="muted-sm">${esc(r.clase)}</span>`,
       nf(r.vn),
@@ -1327,11 +1336,14 @@ function rfClassRow(color, label, v, peso) {
   </div>`;
 }
 
+// Usa el mismo markup/estilo que las tablas de renta variable (th, td.num)
+// para que ambas clases se vean idénticas.
 function rfTable(headers, rows, alignLeft) {
-  const th = headers.map((h, i) => `<th style="padding:8px 6px;text-align:${alignLeft[i] ? 'left' : 'right'};font-size:12px;color:var(--muted);font-weight:600">${h}</th>`).join('');
-  const tr = rows.length ? rows.map(r => '<tr>' + r.map((c, i) => `<td style="padding:8px 6px;text-align:${alignLeft[i] ? 'left' : 'right'};border-top:1px solid var(--line);font-size:13px">${c}</td>`).join('') + '</tr>').join('')
-    : `<tr><td colspan="${headers.length}" style="padding:14px;color:var(--muted)">Sin datos.</td></tr>`;
-  return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">${'<thead><tr>' + th + '</tr></thead>'}<tbody>${tr}</tbody></table></div>`;
+  const th = headers.map((h, i) => `<th class="${alignLeft[i] ? '' : 'num'}">${h}</th>`).join('');
+  const tr = rows.length
+    ? rows.map(r => '<tr>' + r.map((c, i) => `<td class="${alignLeft[i] ? '' : 'num'}">${c}</td>`).join('') + '</tr>').join('')
+    : `<tr><td colspan="${headers.length}" class="empty" style="padding:14px">Sin datos.</td></tr>`;
+  return `<table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
 }
 
 function rfMonthlyChart(id, monthly) {
@@ -1501,16 +1513,17 @@ async function renderRfMovimientos() {
   el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
   await loadRfTrades();
   const rows = [...RF_TRADES].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
-  el.innerHTML = rfTable(
-    ['Fecha', 'Especie', 'Op', 'Nominales', 'Precio', 'Moneda', 'Origen', ''],
+  const compras = rows.filter(t => t.side !== 'VENTA').length, ventas = rows.length - compras;
+  el.innerHTML = `<div class="muted-sm" style="margin-bottom:8px">${compras} compras · ${ventas} ventas</div>` + rfTable(
+    ['Ticker', 'Fecha', 'Op', 'Nominales', 'Precio', ''],
     rows.map(t => [
-      fmtDate(t.fecha), `${tb(t.ticker)} <span class="muted-sm">${esc(t.clase)}</span>`,
+      `${tb(t.ticker)} <span class="muted-sm">${esc(t.clase)}${t.moneda ? ' · ' + esc(t.moneda) : ''} · ${t.source === 'manual' ? 'manual' : 'boleto'}</span>`,
+      fmtDate(t.fecha),
       `<span class="${t.side === 'VENTA' ? 'neg' : 'pos'}">${t.side === 'VENTA' ? 'Venta' : 'Compra'}</span>`,
-      nf(t.cantidad), t.precio != null ? round2(t.precio) : '—', esc(t.moneda || ''),
-      `<span class="muted-sm">${t.source === 'manual' ? 'manual' : 'boleto'}</span>`,
-      `<a href="#" class="rf-deltrade" data-id="${t.id}">borrar</a>`,
+      nf(t.cantidad), t.precio != null ? round2(t.precio) : '—',
+      `<button class="rf-deltrade" title="Borrar" data-id="${t.id}">🗑️</button>`,
     ]),
-    [0, 1, 0, 0, 0, 1, 1, 0]
+    [1, 0, 0, 0, 0, 0]
   );
   el.querySelectorAll('.rf-deltrade').forEach(a => a.onclick = async (e) => {
     e.preventDefault();
@@ -1531,9 +1544,9 @@ async function renderRfVentas() {
   const ventas = RF_TRADES.filter(t => t.side === 'VENTA').sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
   const el = document.getElementById('rf-ventas-content'); if (!el) return;
   el.innerHTML = `<div class="panel-head" style="margin-top:6px"><h2 style="font-size:15px">Historial de ventas</h2></div>` +
-    rfTable(['Fecha', 'Especie', 'Nominales', 'Precio', 'Moneda', ''],
-      ventas.map(t => [fmtDate(t.fecha), tb(t.ticker), nf(t.cantidad), t.precio != null ? round2(t.precio) : '—', esc(t.moneda || ''), `<a href="#" class="rf-deltrade" data-id="${t.id}">borrar</a>`]),
-      [0, 1, 0, 0, 1, 0]);
+    rfTable(['Ticker', 'Fecha', 'Nominales', 'Precio', 'Moneda', ''],
+      ventas.map(t => [tb(t.ticker), fmtDate(t.fecha), nf(t.cantidad), t.precio != null ? round2(t.precio) : '—', esc(t.moneda || ''), `<button class="rf-deltrade" title="Borrar" data-id="${t.id}">🗑️</button>`]),
+      [1, 0, 0, 0, 1, 0]);
   el.querySelectorAll('.rf-deltrade').forEach(a => a.onclick = async (e) => {
     e.preventDefault();
     if (!confirm('¿Borrar esta venta?')) return;
@@ -1583,7 +1596,7 @@ async function renderRfCronograma() {
   }
   const fut = payments.filter(p => String(p.fecha) >= today).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
   html += `<div class="panel-head" style="margin-top:14px"><h2 style="font-size:15px">Próximos pagos</h2><span class="muted-sm">${fut.length} pagos</span></div>`;
-  html += rfTable(['Fecha', 'Especie', 'Renta', 'Amortización', 'Total'],
+  html += rfTable(['Fecha', 'Ticker', 'Renta', 'Amortización', 'Total'],
     fut.map(p => [fmtDate(p.fecha), tb(p.ticker), money(p.renta), p.amortizacion > 0 ? money(p.amortizacion) : '—', money(p.total)]),
     [0, 1, 0, 0, 0]);
   el.innerHTML = html;
