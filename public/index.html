@@ -24,12 +24,15 @@
         <div class="nav-group">Renta variable</div>
         <a class="nav-item" data-sec="resumen">📊 Resumen</a>
         <a class="nav-item" data-sec="cartera">💼 Cartera</a>
-        <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
-        <a class="nav-item" data-sec="tickers">🏷️ Tickers</a>
-        <a class="nav-item" data-sec="tenencias">➕ Tenencias</a>
+        <a class="nav-item" data-sec="tenencias">➕ Movimientos</a>
         <a class="nav-item" data-sec="ventas">💰 Ventas</a>
+        <a class="nav-item" data-sec="tickers">🏷️ Catálogo</a>
+        <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
         <div class="nav-group">Renta fija</div>
-        <a class="nav-item" data-sec="rentafija">🏦 ON y bonos</a>
+        <a class="nav-item" data-sec="rentafija">💼 Cartera</a>
+        <a class="nav-item" data-sec="rf-mov">➕ Movimientos</a>
+        <a class="nav-item" data-sec="rf-ventas">💰 Ventas</a>
+        <a class="nav-item" data-sec="rf-crono">🗓️ Cronograma</a>
         <div class="nav-group">General</div>
         <a class="nav-item" data-sec="reportes">✉️ Reportes diarios</a>
       </nav>
@@ -149,7 +152,7 @@
       <section id="sec-tickers" class="section hidden">
         <div class="panel">
           <div class="panel-head">
-            <h2>Tickers <span class="muted-sm">(lista de deseables)</span></h2>
+            <h2>Catálogo <span class="muted-sm">(tickers deseables)</span></h2>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn" onclick="loadSuggestedTickers()">Cargar sugeridos</button>
               <button class="btn" onclick="openWatchForm()">+ Agregar ticker</button>
@@ -163,7 +166,7 @@
       <section id="sec-tenencias" class="section hidden">
         <div class="panel">
           <div class="panel-head">
-            <h2>Tenencias</h2>
+            <h2>Movimientos <span class="muted-sm">tenencias</span></h2>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn" onclick="openImportForm()">Importar lista</button>
               <button class="btn primary" onclick="openHoldingForm()">+ Agregar tenencia</button>
@@ -193,16 +196,13 @@
         </div>
       </section>
 
-      <!-- RENTA FIJA -->
+      <!-- RENTA FIJA · CARTERA -->
       <section id="sec-rentafija" class="section hidden">
         <div class="panel">
           <div class="panel-head">
-            <h2>Rendimientos</h2>
+            <h2>Cartera <span class="muted-sm">ON y bonos</span></h2>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button class="btn" id="rf-imp-boletos" title="Subí el export de boletos del broker (una vez o para re-sincronizar)">⬆️ Importar boletos</button>
-              <button class="btn" id="rf-imp-crono" title="Subí el cronograma de pagos (DetallePagos) para actualizar cupones">🗓️ Importar cronograma</button>
               <button class="btn" id="rf-refresh" title="Traer cotizaciones de data912">🔄 Actualizar precios</button>
-              <button class="btn primary" id="rf-add" title="Agregar una compra/venta de ON o bono">＋ Agregar</button>
             </div>
           </div>
           <div id="rf-content"></div>
@@ -212,6 +212,54 @@
         </div>
         <input type="file" id="rf-file-boletos" accept=".xlsx,.xls" style="display:none">
         <input type="file" id="rf-file-crono" accept=".xlsx,.xls" style="display:none">
+      </section>
+
+      <!-- RENTA FIJA · MOVIMIENTOS -->
+      <section id="sec-rf-mov" class="section hidden">
+        <div class="panel" id="rf-setup-panel">
+          <div class="panel-head">
+            <h2>Carga inicial <span class="muted-sm">una sola vez</span></h2>
+            <button class="btn" id="rf-setup-hide" title="Ocultar la carga masiva una vez que terminaste">Ocultar</button>
+          </div>
+          <p class="muted-sm" style="margin:0 0 10px">Subí el export de <b>boletos</b> del broker para cargar de una todas tus ONs y bonos. Después administrás el día a día abajo.</p>
+          <button class="btn primary" id="rf-imp-boletos">⬆️ Importar boletos</button>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Movimientos <span class="muted-sm">compras y ventas</span></h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn" id="rf-setup-show" style="display:none" title="Volver a mostrar la carga masiva">Carga masiva</button>
+              <button class="btn primary" id="rf-add">＋ Agregar</button>
+            </div>
+          </div>
+          <div id="rf-mov-content"></div>
+        </div>
+      </section>
+
+      <!-- RENTA FIJA · VENTAS -->
+      <section id="sec-rf-ventas" class="section hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Ventas <span class="muted-sm">ON y bonos</span></h2></div>
+          <div class="filters">
+            <label>Especie (de qué vendés)<select id="rfv-ticker" style="min-width:200px"></select></label>
+            <label>Nominales a vender<input type="number" id="rfv-qty" min="1" step="any" placeholder="1000"></label>
+            <label>Precio (USD por 1 nominal)<input type="number" id="rfv-price" step="any" placeholder="1.09"></label>
+            <label>Fecha<input type="date" id="rfv-date"></label>
+            <button class="btn primary" id="rfv-go">Registrar venta</button>
+          </div>
+          <div id="rf-ventas-content"></div>
+        </div>
+      </section>
+
+      <!-- RENTA FIJA · CRONOGRAMA -->
+      <section id="sec-rf-crono" class="section hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Cronograma <span class="muted-sm">cupones y amortizaciones</span></h2>
+            <button class="btn" id="rf-imp-crono" title="Subí el DetallePagos para actualizar los cupones (se mantiene en el tiempo)">🗓️ Importar cronograma</button>
+          </div>
+          <div id="rf-crono-content"></div>
+        </div>
       </section>
 
       <!-- SUGERENCIAS -->

@@ -158,7 +158,7 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], toda
     }
   }
 
-  let comprasUsd = 0, ventasUsd = 0, valorActual = 0, costoTenencia = 0, rentaCobrada = 0, sinPrecio = 0;
+  let comprasUsd = 0, ventasUsd = 0, valorActual = 0, costoTenencia = 0, rentaCobrada = 0, sinPrecio = 0, escalaRara = 0;
   const rows = [];
 
   for (const tk of Object.keys(byTicker)) {
@@ -181,7 +181,13 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], toda
     if (vn <= 0) continue; // posición cerrada: no aparece en tenencias
 
     const pr = prices[tk] || null;
-    const price = pr && Number(pr.price) > 0 ? Number(pr.price) : null;
+    // Red de seguridad: un ON/bono cotiza en USD par (~0,2 a ~1,5 por nominal).
+    // Un precio > 5 es casi seguro un error de escala (quedó en pesos / sin
+    // dividir por el MEP): lo ignoramos y valuamos al costo en vez de mostrar
+    // un número absurdo.
+    const raw = pr && Number(pr.price) > 0 ? Number(pr.price) : null;
+    const price = raw != null && raw < 5 ? raw : null;
+    const priceOffScale = raw != null && raw >= 5;
     const invertido = r2(avgCostUsd * vn);
     // Sin precio de mercado: se valúa al costo (ganancia 0) para no distorsionar
     // el total; el UI marca la posición como "sin precio" para que la cargues.
@@ -191,6 +197,7 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], toda
     costoTenencia += invertido;
     valorActual += valor;
     if (price == null) sinPrecio++;
+    if (priceOffScale) escalaRara++;
 
     rows.push({
       ticker: tk,
@@ -228,6 +235,7 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], toda
       rendimientoPct,
       posiciones: rows.length,
       sinPrecio,
+      escalaRara,
       comprasUsd: r2(comprasUsd),
       ventasUsd: r2(ventasUsd),
     },

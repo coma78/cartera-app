@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { rendimientos: 'Rendimientos', resumen: 'Resumen', cartera: 'Cartera', rentafija: 'Renta fija', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Tickers', tenencias: 'Tenencias', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos', resumen: 'Resumen', cartera: 'Cartera', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -134,6 +134,9 @@ function renderSection(sec) {
   else if (sec === 'resumen') renderResumen();
   else if (sec === 'cartera') renderCartera();
   else if (sec === 'rentafija') renderRentaFija();
+  else if (sec === 'rf-mov') renderRfMovimientos();
+  else if (sec === 'rf-ventas') renderRfVentas();
+  else if (sec === 'rf-crono') renderRfCronograma();
   else if (sec === 'sugerencias') renderSugerencias();
   else if (sec === 'descubrir') renderDescubrir();
   else if (sec === 'tickers') renderCatalog();
@@ -1143,6 +1146,9 @@ function bindEvents() {
   document.getElementById('rf-file-crono').addEventListener('change', onImportCronograma);
   document.getElementById('rf-refresh').onclick = rfRefreshPrices;
   document.getElementById('rf-add').onclick = openRfTradeForm;
+  document.getElementById('rf-setup-hide').onclick = () => { localStorage.setItem('rf_setup_hidden', '1'); applyRfSetupVisibility(); };
+  document.getElementById('rf-setup-show').onclick = () => { localStorage.removeItem('rf_setup_hidden'); applyRfSetupVisibility(); };
+  document.getElementById('rfv-go').onclick = registerRfSale;
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
     try {
@@ -1232,23 +1238,15 @@ function rfRenderFija(el) {
     { label: 'Total', value: money(t.gananciaTotal), sub: rfPct(t.rendimientoPct), cls: cls(t.gananciaTotal) },
   ]);
 
+  if (t.escalaRara > 0) {
+    html += `<div style="margin:12px 0 0;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">
+      ⚠️ ${t.escalaRara} ${t.escalaRara === 1 ? 'precio con escala incorrecta' : 'precios con escala incorrecta'} (quedaron en pesos): se valúan al costo.
+      <a href="#" id="rf-nudge-clear">Limpiar precios</a> y después <a href="#" id="rf-nudge-refresh2">Actualizar precios</a>.</div>`;
+  }
   if (t.sinPrecio > 0) {
     html += `<div class="muted-sm" style="margin:12px 0 0;padding:9px 12px;border:1px dashed var(--line);border-radius:10px">
       ⚠️ ${t.sinPrecio} ${t.sinPrecio === 1 ? 'posición valuada' : 'posiciones valuadas'} al costo (sin precio de mercado).
       <a href="#" id="rf-nudge-refresh">Actualizar precios</a> o cargalos a mano en la tabla.</div>`;
-  }
-
-  if ((d.monthly || []).length) {
-    html += `<div class="panel-head" style="margin-top:18px"><h2 style="font-size:15px">Renta a cobrar por mes</h2></div>
-      <div class="muted-sm" style="margin:-4px 0 6px">Cupones y amortizaciones proyectados (${CONFIG.currency || 'USD'})</div>
-      <div class="chart-wrap" style="height:200px"><canvas id="rf-chart-monthly"></canvas></div>`;
-  }
-  if ((d.upcoming || []).length) {
-    html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Próximos cupones</h2></div>
-      <div class="totals-strip" style="flex-direction:column;gap:0">` +
-      d.upcoming.slice(0, 6).map(p => `<div style="display:flex;justify-content:space-between;padding:7px 2px;border-bottom:1px solid var(--line)">
-        <span>${fmtDate(p.fecha)} · ${tb(p.ticker)} · <span class="muted-sm">${esc(p.tipo)}</span></span>
-        <span>${money(p.total)}</span></div>`).join('') + `</div>`;
   }
 
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Tenencias</h2></div>`;
@@ -1269,12 +1267,19 @@ function rfRenderFija(el) {
   );
   el.innerHTML = html;
 
-  if ((d.monthly || []).length) rfMonthlyChart('rf-chart-monthly', d.monthly);
   el.querySelectorAll('.rf-editpx').forEach(a => a.onclick = (e) => {
     e.preventDefault(); rfSetPrice(a.dataset.tk, a.dataset.px);
   });
   const nudge = document.getElementById('rf-nudge-refresh');
   if (nudge) nudge.onclick = (e) => { e.preventDefault(); rfRefreshPrices(); };
+  const nudge2 = document.getElementById('rf-nudge-refresh2');
+  if (nudge2) nudge2.onclick = (e) => { e.preventDefault(); rfRefreshPrices(); };
+  const nudgeC = document.getElementById('rf-nudge-clear');
+  if (nudgeC) nudgeC.onclick = async (e) => {
+    e.preventDefault();
+    try { await api('/rf/prices/clear', { method: 'POST', body: '{}' }); toast('Precios limpiados'); RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC); }
+    catch (err) { toast(err.message); }
+  };
 }
 
 // ---- Vista Consolidado ----
@@ -1389,7 +1394,7 @@ async function onImportBoletos(e) {
     if (!rows.length) return toast('No se detectaron filas con ticker');
     const res = await api('/rf/import-boletos', { method: 'POST', body: JSON.stringify({ rows }) });
     toast(`Importados ${res.imported} boletos · ${res.posiciones} posiciones de renta fija`);
-    RF_VIEW = 'fija'; RF_DATA = null; RF_CONS = null; renderRentaFija();
+    RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC);
   } catch (err) { toast('Error al importar: ' + err.message); }
 }
 async function onImportCronograma(e) {
@@ -1405,7 +1410,7 @@ async function onImportCronograma(e) {
     if (!rows.length) return toast('No se detectaron pagos válidos');
     const res = await api('/rf/import-cronograma', { method: 'POST', body: JSON.stringify({ rows }) });
     toast(`Cronograma actualizado · ${res.imported} pagos`);
-    RF_DATA = null; RF_CONS = null; renderRentaFija();
+    RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC);
   } catch (err) { toast('Error al importar cronograma: ' + err.message); }
 }
 
@@ -1415,7 +1420,7 @@ async function rfRefreshPrices() {
     const r = await api('/rf/refresh-prices', { method: 'POST', body: '{}' });
     const mepTxt = r.mep ? ` · MEP ${Number(r.mep).toLocaleString('es-AR')}${r.mepSource ? ' (' + r.mepSource + ')' : ''}` : '';
     toast(r.updated ? `Precios actualizados: ${r.updated}${mepTxt}` : ('Sin precios nuevos' + (r.error ? ` — ${r.error}` : '')));
-    RF_DATA = null; RF_CONS = null; renderRentaFija();
+    RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC);
   } catch (e) { toast(e.message); }
   b.disabled = false; b.textContent = o;
 }
@@ -1424,7 +1429,7 @@ async function rfSetPrice(ticker, cur) {
   if (v == null) return;
   const price = Number(String(v).replace(',', '.'));
   if (!(price > 0)) return toast('Precio inválido');
-  try { await api('/rf/price', { method: 'POST', body: JSON.stringify({ ticker, price }) }); toast('Precio guardado'); RF_DATA = null; RF_CONS = null; renderRentaFija(); }
+  try { await api('/rf/price', { method: 'POST', body: JSON.stringify({ ticker, price }) }); toast('Precio guardado'); RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC); }
   catch (e) { toast(e.message); }
 }
 function openRfTradeForm() {
@@ -1453,10 +1458,112 @@ function openRfTradeForm() {
       emisor: document.getElementById('rf-t-emisor').value,
     };
     if (!body.ticker || !(Number(body.cantidad) > 0)) return toast('Ticker y nominales son obligatorios');
-    try { await api('/rf/trade', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Movimiento agregado'); RF_DATA = null; RF_CONS = null; renderRentaFija(); }
+    try { await api('/rf/trade', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Movimiento agregado'); RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC); }
     catch (e) { toast(e.message); }
   };
   modal.classList.remove('hidden');
+}
+
+// ---- Movimientos (boletos: compras/ventas) ----
+let RF_TRADES = [];
+async function loadRfTrades() { try { RF_TRADES = await api('/rf/trades'); } catch { RF_TRADES = []; } }
+function rfSetupHidden() { return localStorage.getItem('rf_setup_hidden') === '1'; }
+function applyRfSetupVisibility() {
+  const panel = document.getElementById('rf-setup-panel'), show = document.getElementById('rf-setup-show');
+  if (!panel) return;
+  const hidden = rfSetupHidden();
+  panel.style.display = hidden ? 'none' : '';
+  if (show) show.style.display = hidden ? '' : 'none';
+}
+async function renderRfMovimientos() {
+  applyRfSetupVisibility();
+  const el = document.getElementById('rf-mov-content'); if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
+  await loadRfTrades();
+  const rows = [...RF_TRADES].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+  el.innerHTML = rfTable(
+    ['Fecha', 'Especie', 'Op', 'Nominales', 'Precio', 'Moneda', 'Origen', ''],
+    rows.map(t => [
+      fmtDate(t.fecha), `${tb(t.ticker)} <span class="muted-sm">${esc(t.clase)}</span>`,
+      `<span class="${t.side === 'VENTA' ? 'neg' : 'pos'}">${t.side === 'VENTA' ? 'Venta' : 'Compra'}</span>`,
+      nf(t.cantidad), t.precio != null ? round2(t.precio) : '—', esc(t.moneda || ''),
+      `<span class="muted-sm">${t.source === 'manual' ? 'manual' : 'boleto'}</span>`,
+      `<a href="#" class="rf-deltrade" data-id="${t.id}">borrar</a>`,
+    ]),
+    [0, 1, 0, 0, 0, 1, 1, 0]
+  );
+  el.querySelectorAll('.rf-deltrade').forEach(a => a.onclick = async (e) => {
+    e.preventDefault();
+    if (!confirm('¿Borrar este movimiento?')) return;
+    try { await api('/rf/trade/' + a.dataset.id, { method: 'DELETE' }); toast('Movimiento borrado'); RF_DATA = null; RF_CONS = null; renderRfMovimientos(); }
+    catch (err) { toast(err.message); }
+  });
+}
+
+// ---- Ventas de renta fija ----
+async function renderRfVentas() {
+  await loadRf();
+  const sel = document.getElementById('rfv-ticker');
+  if (sel) sel.innerHTML = (RF_DATA.rows || []).length
+    ? (RF_DATA.rows || []).map(r => `<option value="${esc(r.ticker)}">${esc(r.ticker)} · ${nf(r.vn)} VN</option>`).join('')
+    : '<option value="">(sin posiciones)</option>';
+  await loadRfTrades();
+  const ventas = RF_TRADES.filter(t => t.side === 'VENTA').sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+  const el = document.getElementById('rf-ventas-content'); if (!el) return;
+  el.innerHTML = `<div class="panel-head" style="margin-top:6px"><h2 style="font-size:15px">Historial de ventas</h2></div>` +
+    rfTable(['Fecha', 'Especie', 'Nominales', 'Precio', 'Moneda', ''],
+      ventas.map(t => [fmtDate(t.fecha), tb(t.ticker), nf(t.cantidad), t.precio != null ? round2(t.precio) : '—', esc(t.moneda || ''), `<a href="#" class="rf-deltrade" data-id="${t.id}">borrar</a>`]),
+      [0, 1, 0, 0, 1, 0]);
+  el.querySelectorAll('.rf-deltrade').forEach(a => a.onclick = async (e) => {
+    e.preventDefault();
+    if (!confirm('¿Borrar esta venta?')) return;
+    try { await api('/rf/trade/' + a.dataset.id, { method: 'DELETE' }); toast('Venta borrada'); RF_DATA = null; RF_CONS = null; renderRfVentas(); }
+    catch (err) { toast(err.message); }
+  });
+}
+async function registerRfSale() {
+  const ticker = document.getElementById('rfv-ticker').value;
+  const qty = document.getElementById('rfv-qty').value;
+  const price = document.getElementById('rfv-price').value;
+  const date = document.getElementById('rfv-date').value;
+  if (!ticker || !(Number(qty) > 0)) return toast('Elegí especie y nominales');
+  const clase = (RF_DATA?.rows || []).find(r => r.ticker === ticker)?.clase || 'ON';
+  try {
+    await api('/rf/trade', { method: 'POST', body: JSON.stringify({ ticker, side: 'VENTA', clase, cantidad: qty, precio: price, moneda: 'Dólares', fecha: date }) });
+    toast('Venta registrada'); RF_DATA = null; RF_CONS = null;
+    document.getElementById('rfv-qty').value = ''; document.getElementById('rfv-price').value = '';
+    renderRfVentas();
+  } catch (e) { toast(e.message); }
+}
+
+// ---- Cronograma (cupones) ----
+async function renderRfCronograma() {
+  const el = document.getElementById('rf-crono-content'); if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
+  await loadRf();
+  let payments = []; try { payments = await api('/rf/payments'); } catch { payments = []; }
+  const today = new Date().toISOString().slice(0, 10);
+  const d = RF_DATA || {};
+  let html = '';
+  if (!payments.length) {
+    html = `<div style="text-align:center;padding:28px 12px;border:1px dashed var(--line);border-radius:12px">
+      <div style="margin-bottom:6px">Todavía no cargaste el cronograma</div>
+      <div class="muted-sm" style="margin-bottom:12px">Subí el DetallePagos del broker para ver cupones y amortizaciones.</div>
+      <button class="btn primary" onclick="document.getElementById('rf-file-crono').click()">🗓️ Importar cronograma</button></div>`;
+    el.innerHTML = html; return;
+  }
+  if ((d.monthly || []).length) {
+    html += `<div class="panel-head"><h2 style="font-size:15px">Renta a cobrar por mes</h2></div>
+      <div class="muted-sm" style="margin:-4px 0 6px">Cupones y amortizaciones proyectados (${CONFIG.currency || 'USD'})</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="rf-crono-monthly"></canvas></div>`;
+  }
+  const fut = payments.filter(p => String(p.fecha) >= today).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  html += `<div class="panel-head" style="margin-top:14px"><h2 style="font-size:15px">Próximos pagos</h2><span class="muted-sm">${fut.length} pagos</span></div>`;
+  html += rfTable(['Fecha', 'Especie', 'Renta', 'Amortización', 'Total'],
+    fut.map(p => [fmtDate(p.fecha), tb(p.ticker), money(p.renta), p.amortizacion > 0 ? money(p.amortizacion) : '—', money(p.total)]),
+    [0, 1, 0, 0, 0]);
+  el.innerHTML = html;
+  if ((d.monthly || []).length) rfMonthlyChart('rf-crono-monthly', d.monthly);
 }
 
 // ---------- Init ----------

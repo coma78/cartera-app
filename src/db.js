@@ -399,6 +399,11 @@ export async function listRfPrices() {
   for (const r of rows) map[r.ticker] = { price: r.price != null ? Number(r.price) : null, source: r.source, updated_at: r.updated_at };
   return map;
 }
+// Borra precios cacheados. Por defecto sólo los automáticos (deja los manuales).
+export async function clearRfPrices({ includeManual = false } = {}) {
+  if (includeManual) await query('DELETE FROM rf_prices');
+  else await query(`DELETE FROM rf_prices WHERE source = 'auto'`);
+}
 export async function setRfPrice(ticker, price, source = 'manual') {
   const tk = String(ticker || '').toUpperCase().trim();
   await query(

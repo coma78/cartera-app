@@ -14,7 +14,7 @@ import {
   listSales, sellFromLot, deleteSaleRestore,
   saveSeries, deleteAllSeries,
   listRfTrades, saveRfTrades, deleteRfTrade, deleteAllRfTrades,
-  listRfPrices, setRfPrice, saveRfPricesAuto,
+  listRfPrices, setRfPrice, saveRfPricesAuto, clearRfPrices,
   listRfPayments, saveRfPayments,
 } from './db.js';
 import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex } from './rentafija.js';
@@ -494,6 +494,12 @@ app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
 }));
 
 app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
+
+// Limpiar precios cacheados (por defecto sólo los automáticos).
+app.post('/api/rf/prices/clear', wrap(async (req, res) => {
+  await clearRfPrices({ includeManual: req.body?.includeManual === true });
+  res.json({ ok: true });
+}));
 
 // Vista consolidada: renta variable (CEDEARs) + renta fija.
 app.get('/api/rf/consolidated', wrap(async (_req, res) => {
