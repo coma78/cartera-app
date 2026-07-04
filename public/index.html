@@ -12,6 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Car te re ar" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="layout">
@@ -21,6 +22,7 @@
       <nav id="nav">
         <a class="nav-item active" data-sec="resumen">📊 Resumen</a>
         <a class="nav-item" data-sec="cartera">💼 Cartera</a>
+        <a class="nav-item" data-sec="rentafija">🏦 Renta fija</a>
         <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
         <div class="nav-group">Carga</div>
         <a class="nav-item" data-sec="tickers">🏷️ Tickers</a>
@@ -173,6 +175,32 @@
           </div>
           <div id="sales-list"></div>
         </div>
+      </section>
+
+      <!-- RENTA FIJA -->
+      <section id="sec-rentafija" class="section hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Rendimientos</h2>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn" id="rf-imp-boletos" title="Subí el export de boletos del broker (una vez o para re-sincronizar)">⬆️ Importar boletos</button>
+              <button class="btn" id="rf-imp-crono" title="Subí el cronograma de pagos (DetallePagos) para actualizar cupones">🗓️ Importar cronograma</button>
+              <button class="btn" id="rf-refresh" title="Traer cotizaciones de data912">🔄 Actualizar precios</button>
+              <button class="btn primary" id="rf-add" title="Agregar una compra/venta de ON o bono">＋ Agregar</button>
+            </div>
+          </div>
+          <div class="seg" style="margin-bottom:12px">
+            <button class="seg-btn" data-rfview="variable">Renta variable</button>
+            <button class="seg-btn active" data-rfview="fija">Renta fija</button>
+            <button class="seg-btn" data-rfview="consolidado">Consolidado</button>
+          </div>
+          <div id="rf-content"></div>
+          <p class="disclaimer" style="padding:0">
+            Información para tu decisión, no asesoramiento financiero. Precios y cronograma pueden tener errores; verificá antes de operar.
+          </p>
+        </div>
+        <input type="file" id="rf-file-boletos" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="rf-file-crono" accept=".xlsx,.xls" style="display:none">
       </section>
 
       <!-- SUGERENCIAS -->

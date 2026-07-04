@@ -93,6 +93,45 @@ export async function migrate() {
     );
   `);
 
+  // ---- Renta fija (ONs + bonos) ----
+  await query(`
+    CREATE TABLE IF NOT EXISTS rf_trades (
+      id         SERIAL PRIMARY KEY,
+      ticker     TEXT NOT NULL,
+      especie    TEXT DEFAULT '',
+      emisor     TEXT DEFAULT '',
+      clase      TEXT NOT NULL,
+      side       TEXT NOT NULL,
+      cantidad   NUMERIC NOT NULL DEFAULT 0,
+      precio     NUMERIC,
+      moneda     TEXT DEFAULT '',
+      neto       NUMERIC,
+      precio_usd NUMERIC,
+      neto_usd   NUMERIC,
+      fecha      DATE,
+      source     TEXT NOT NULL DEFAULT 'import',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS rf_prices (
+      ticker     TEXT PRIMARY KEY,
+      price      NUMERIC,
+      source     TEXT DEFAULT 'auto',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS rf_payments (
+      id           SERIAL PRIMARY KEY,
+      ticker       TEXT NOT NULL,
+      fecha        DATE NOT NULL,
+      renta        NUMERIC NOT NULL DEFAULT 0,
+      amortizacion NUMERIC NOT NULL DEFAULT 0,
+      total        NUMERIC NOT NULL DEFAULT 0
+    );
+  `);
+
   console.log('[db] migracion ok');
 }
 
@@ -319,4 +358,91 @@ export async function listReports(limit = 500) {
     [limit]
   );
   return rows;
+}
+
+// ---------- Renta fija: boletos ----------
+export async function listRfTrades() {
+  const { rows } = await query('SELECT * FROM rf_trades ORDER BY fecha DESC NULLS LAST, id DESC');
+  return rows;
+}
+
+// Inserta boletos de renta fija. source='import' reemplaza los importados
+// previos (re-sincronización total); source='manual' se agrega sin borrar.
+export async function saveRfTrades(trades = [], { source = 'import' } = {}) {
+  if (source === 'import') await query(`DELETE FROM rf_trades WHERE source = 'import'`);
+  let n = 0;
+  for (const t of trades) {
+    const tk = String(t.ticker || '').toUpperCase().trim();
+    if (!tk) continue;
+    await query(
+      `INSERT INTO rf_trades (ticker, especie, emisor, clase, side, cantidad, precio, moneda, neto, precio_usd, neto_usd, fecha, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [tk, t.especie || '', t.emisor || '', t.clase, String(t.side || 'COMPRA').toUpperCase(),
+       Number(t.cantidad) || 0, t.precio ?? null, t.moneda || '', t.neto ?? null,
+       t.precio_usd ?? null, t.neto_usd ?? null, t.fecha || null, source]
+    );
+    n++;
+  }
+  return n;
+}
+export async function deleteRfTrade(id) {
+  await query('DELETE FROM rf_trades WHERE id = $1', [id]);
+}
+export async function deleteAllRfTrades() {
+  await query('DELETE FROM rf_trades');
+}
+
+// ---------- Renta fija: precios ----------
+export async function listRfPrices() {
+  const { rows } = await query('SELECT ticker, price, source, updated_at FROM rf_prices');
+  const map = {};
+  for (const r of rows) map[r.ticker] = { price: r.price != null ? Number(r.price) : null, source: r.source, updated_at: r.updated_at };
+  return map;
+}
+export async function setRfPrice(ticker, price, source = 'manual') {
+  const tk = String(ticker || '').toUpperCase().trim();
+  await query(
+    `INSERT INTO rf_prices (ticker, price, source, updated_at) VALUES ($1,$2,$3, now())
+     ON CONFLICT (ticker) DO UPDATE SET price = EXCLUDED.price, source = EXCLUDED.source, updated_at = now()`,
+    [tk, price != null ? Number(price) : null, source]
+  );
+}
+// Precios automáticos (data912): no piso los precios cargados a mano.
+export async function saveRfPricesAuto(map = {}) {
+  const { rows } = await query(`SELECT ticker FROM rf_prices WHERE source = 'manual'`);
+  const manual = new Set(rows.map((r) => r.ticker));
+  let n = 0;
+  for (const tk of Object.keys(map)) {
+    if (manual.has(tk)) continue;
+    const price = Number(map[tk]);
+    if (!(price > 0)) continue;
+    await setRfPrice(tk, price, 'auto');
+    n++;
+  }
+  return n;
+}
+
+// ---------- Renta fija: cronograma de pagos ----------
+export async function listRfPayments() {
+  const { rows } = await query('SELECT ticker, fecha, renta, amortizacion, total FROM rf_payments ORDER BY fecha ASC');
+  return rows.map((r) => ({
+    ticker: r.ticker,
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10),
+    renta: Number(r.renta) || 0, amortizacion: Number(r.amortizacion) || 0, total: Number(r.total) || 0,
+  }));
+}
+export async function saveRfPayments(rows = []) {
+  await query('DELETE FROM rf_payments');
+  let n = 0;
+  for (const p of rows) {
+    const tk = String(p.ticker || '').toUpperCase().trim();
+    const f = String(p.fecha || '').slice(0, 10);
+    if (!tk || !/^\d{4}-\d{2}-\d{2}$/.test(f)) continue;
+    await query(
+      `INSERT INTO rf_payments (ticker, fecha, renta, amortizacion, total) VALUES ($1,$2,$3,$4,$5)`,
+      [tk, f, Number(p.renta) || 0, Number(p.amortizacion) || 0, Number(p.total) || (Number(p.renta) || 0) + (Number(p.amortizacion) || 0)]
+    );
+    n++;
+  }
+  return n;
 }

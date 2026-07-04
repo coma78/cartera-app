@@ -13,7 +13,12 @@ import {
   getSetting, setSetting,
   listSales, sellFromLot, deleteSaleRestore,
   saveSeries, deleteAllSeries,
+  listRfTrades, saveRfTrades, deleteRfTrade, deleteAllRfTrades,
+  listRfPrices, setRfPrice, saveRfPricesAuto,
+  listRfPayments, saveRfPayments,
 } from './db.js';
+import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF } from './rentafija.js';
+import { fetchRfPrices } from './rfprices.js';
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
@@ -29,7 +34,7 @@ import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.set('trust proxy', true);
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 const APP_TOKEN = process.env.APP_TOKEN || '';
 
@@ -366,6 +371,154 @@ app.get('/api/reports/latest', wrap(async (_req, res) => {
   if (!r) return res.status(404).send('Sin reportes todavia');
   res.set('Content-Type', 'text/html').send(r.html);
 }));
+
+// ==================== RENTA FIJA (ONs + bonos) ====================
+// Cómputo central reutilizable: boletos + precios + cronograma -> cartera.
+async function computeRf() {
+  const [trades, prices, payments] = await Promise.all([listRfTrades(), listRfPrices(), listRfPayments()]);
+  const today = new Date().toISOString().slice(0, 10);
+  const { rows, totals } = computePortfolio({ trades, prices, payments, today });
+  return { rows, totals, prices, payments, today };
+}
+
+// Importar boletos del broker (una vez / re-sincronización total).
+// Body: { rows: [{ especie, ticker, side, cantidad, precio, neto, moneda, fecha }] }
+app.post('/api/rf/import-boletos', wrap(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ error: 'No se recibieron filas del archivo' });
+  const norm = rows.map((r) => ({
+    especie: r.especie || '', ticker: String(r.ticker || '').toUpperCase().trim(),
+    side: String(r.side || r.tipo || 'COMPRA').toUpperCase(),
+    cantidad: Number(r.cantidad) || 0, precio: r.precio != null ? Number(r.precio) : null,
+    neto: r.neto != null ? Number(r.neto) : null, moneda: r.moneda || '',
+    fecha: r.fecha ? String(r.fecha).slice(0, 10) : null,
+  }));
+  const enriched = enrichTrades(norm); // sólo ON+Bono, con precio_usd/neto_usd
+  const saved = await saveRfTrades(enriched, { source: 'import' });
+  // refresco de precios automático best-effort (no bloquea si falla)
+  let priced = 0;
+  try {
+    const held = [...new Set(enriched.map((t) => t.ticker))];
+    const auto = await fetchRfPrices(held);
+    priced = await saveRfPricesAuto(auto);
+  } catch { /* noop */ }
+  const rf = await computeRf();
+  res.json({ imported: saved, clasificados: enriched.length, priced, totals: rf.totals, posiciones: rf.rows.length });
+}));
+
+// Importar cronograma de pagos (recurrente). Body: { rows:[{ ticker,fecha,renta,amortizacion,total }] }
+app.post('/api/rf/import-cronograma', wrap(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ error: 'No se recibieron filas del cronograma' });
+  const n = await saveRfPayments(rows);
+  res.json({ imported: n });
+}));
+
+// Cartera de renta fija (tenencias + totales + renta por mes + próximos cupones).
+app.get('/api/rf/holdings', wrap(async (_req, res) => {
+  const rf = await computeRf();
+  res.json({
+    rows: rf.rows,
+    totals: rf.totals,
+    monthly: monthlyRenta(rf.payments, { today: rf.today }),
+    upcoming: upcomingPayments(rf.payments, { today: rf.today }),
+    hasData: rf.rows.length > 0 || rf.payments.length > 0,
+  });
+}));
+
+// Alta manual de una compra/venta de ON/Bono (sin re-importar boletos).
+app.post('/api/rf/trade', wrap(async (req, res) => {
+  const b = req.body || {};
+  const ticker = String(b.ticker || '').toUpperCase().trim();
+  if (!ticker) return res.status(400).json({ error: 'El ticker es obligatorio' });
+  if (!(Number(b.cantidad) > 0)) return res.status(400).json({ error: 'La cantidad (nominales) debe ser mayor a 0' });
+  const clase = b.clase || classify(b.especie, ticker) || 'ON';
+  if (!isRF(clase)) return res.status(400).json({ error: 'Sólo ONs o bonos van en renta fija' });
+  const raw = {
+    especie: b.especie || ticker, ticker, emisor: b.emisor || emisorFrom(b.especie || ticker), clase,
+    side: String(b.side || 'COMPRA').toUpperCase(),
+    cantidad: Number(b.cantidad) || 0, precio: b.precio != null ? Number(b.precio) : null,
+    neto: b.neto != null ? Number(b.neto) : (Number(b.cantidad) * Number(b.precio) || null),
+    moneda: b.moneda || 'Dólares', fecha: b.fecha ? String(b.fecha).slice(0, 10) : null,
+  };
+  // Convertir a USD usando el MEP implícito de TODO el histórico (import + manual).
+  const existing = await listRfTrades();
+  const all = enrichTrades([...existing.map((t) => ({ especie: t.especie, ticker: t.ticker, emisor: t.emisor, clase: t.clase, side: t.side, cantidad: t.cantidad, precio: t.precio, neto: t.neto, moneda: t.moneda, fecha: t.fecha instanceof Date ? t.fecha.toISOString().slice(0, 10) : t.fecha })), raw]);
+  const mine = all[all.length - 1];
+  await saveRfTrades([mine], { source: 'manual' });
+  const rf = await computeRf();
+  res.json({ ok: true, totals: rf.totals });
+}));
+app.delete('/api/rf/trade/:id', wrap(async (req, res) => {
+  await deleteRfTrade(Number(req.params.id));
+  res.json({ ok: true });
+}));
+app.get('/api/rf/trades', wrap(async (_req, res) => res.json(await listRfTrades())));
+
+// Precio manual (override) de un ON/Bono.
+app.post('/api/rf/price', wrap(async (req, res) => {
+  const ticker = String(req.body?.ticker || '').toUpperCase().trim();
+  const price = Number(req.body?.price);
+  if (!ticker || !(price > 0)) return res.status(400).json({ error: 'ticker y precio (>0) son obligatorios' });
+  await setRfPrice(ticker, price, 'manual');
+  res.json({ ok: true });
+}));
+
+// Refrescar precios automáticos desde data912.
+app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
+  const trades = await listRfTrades();
+  const held = [...new Set(trades.map((t) => t.ticker))];
+  if (!held.length) return res.json({ updated: 0, msg: 'No hay tenencias de renta fija' });
+  let updated = 0, error = null;
+  try {
+    const auto = await fetchRfPrices(held);
+    updated = await saveRfPricesAuto(auto);
+  } catch (e) { error = e.message; }
+  res.json({ updated, error });
+}));
+
+app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
+
+// Vista consolidada: renta variable (CEDEARs) + renta fija.
+app.get('/api/rf/consolidated', wrap(async (_req, res) => {
+  const rf = await computeRf();
+  const { summary } = await buildReport({ withNews: false, maxAgeMs: 60000 });
+  const variable = {
+    valorActual: summary.totalValue || 0,
+    capitalAportado: summary.totalCost || 0,
+    ganancia: summary.totalPl || 0,
+    rendimientoPct: summary.totalPlPct,
+  };
+  const fija = {
+    valorActual: rf.totals.valorActual,
+    capitalAportado: rf.totals.capitalAportado,
+    ganancia: rf.totals.gananciaTotal,
+    rentaCobrada: rf.totals.rentaCobrada,
+    rendimientoPct: rf.totals.rendimientoPct,
+  };
+  const valorTotal = round2(variable.valorActual + fija.valorActual);
+  const aportadoTotal = round2(variable.capitalAportado + fija.capitalAportado);
+  const gananciaTotal = round2(variable.ganancia + fija.ganancia);
+  const rendimientoPct = aportadoTotal > 0 ? round2(gananciaTotal / aportadoTotal * 100) : null;
+  res.json({
+    variable, fija,
+    total: { valorActual: valorTotal, capitalAportado: aportadoTotal, gananciaTotal, rendimientoPct },
+    pesos: {
+      variable: valorTotal > 0 ? round2(variable.valorActual / valorTotal * 100) : 0,
+      fija: valorTotal > 0 ? round2(fija.valorActual / valorTotal * 100) : 0,
+    },
+    monthly: monthlyRenta(rf.payments, { today: rf.today }),
+  });
+}));
+
+// Reset sólo de renta fija (no toca CEDEARs).
+app.post('/api/rf/reset', wrap(async (_req, res) => {
+  await deleteAllRfTrades();
+  await saveRfPayments([]);
+  res.json({ ok: true });
+}));
+
+function round2(n) { return Math.round(n * 100) / 100; }
 
 // ---- Static UI (la portada pide login si el SSO está activo) ----
 app.get('/', pageGuard, (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
