@@ -1405,7 +1405,8 @@ async function rfRefreshPrices() {
   const b = document.getElementById('rf-refresh'); const o = b.textContent; b.disabled = true; b.textContent = 'Actualizando…';
   try {
     const r = await api('/rf/refresh-prices', { method: 'POST', body: '{}' });
-    toast(r.updated ? `Precios actualizados: ${r.updated}` : ('Sin precios nuevos' + (r.error ? ` (${r.error})` : '')));
+    const mepTxt = r.mep ? ` · MEP ${Number(r.mep).toLocaleString('es-AR')}${r.mepSource ? ' (' + r.mepSource + ')' : ''}` : '';
+    toast(r.updated ? `Precios actualizados: ${r.updated}${mepTxt}` : ('Sin precios nuevos' + (r.error ? ` — ${r.error}` : '')));
     RF_DATA = null; RF_CONS = null; renderRentaFija();
   } catch (e) { toast(e.message); }
   b.disabled = false; b.textContent = o;

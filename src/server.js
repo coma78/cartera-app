@@ -17,8 +17,18 @@ import {
   listRfPrices, setRfPrice, saveRfPricesAuto,
   listRfPayments, saveRfPayments,
 } from './db.js';
-import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF } from './rentafija.js';
+import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
+
+// MEP implícito más reciente a partir de los boletos (respaldo si dolarapi falla).
+function latestImpliedMep(trades) {
+  const idx = buildMepIndex(trades.map((t) => ({
+    fecha: t.fecha instanceof Date ? t.fecha.toISOString().slice(0, 10) : String(t.fecha || ''),
+    ticker: t.ticker, moneda: t.moneda, precio: t.precio,
+  })));
+  const keys = Object.keys(idx).sort();
+  return keys.length ? idx[keys[keys.length - 1]] : null;
+}
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
 import { emailConfigured } from './email.js';
@@ -399,14 +409,15 @@ app.post('/api/rf/import-boletos', wrap(async (req, res) => {
   const enriched = enrichTrades(norm); // sólo ON+Bono, con precio_usd/neto_usd
   const saved = await saveRfTrades(enriched, { source: 'import' });
   // refresco de precios automático best-effort (no bloquea si falla)
-  let priced = 0;
+  let priced = 0, mep = null;
   try {
     const held = [...new Set(enriched.map((t) => t.ticker))];
-    const auto = await fetchRfPrices(held);
-    priced = await saveRfPricesAuto(auto);
+    const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(enriched) });
+    priced = await saveRfPricesAuto(r.prices);
+    mep = r.mep;
   } catch { /* noop */ }
   const rf = await computeRf();
-  res.json({ imported: saved, clasificados: enriched.length, priced, totals: rf.totals, posiciones: rf.rows.length });
+  res.json({ imported: saved, clasificados: enriched.length, priced, mep, totals: rf.totals, posiciones: rf.rows.length });
 }));
 
 // Importar cronograma de pagos (recurrente). Body: { rows:[{ ticker,fecha,renta,amortizacion,total }] }
@@ -472,12 +483,14 @@ app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
   const trades = await listRfTrades();
   const held = [...new Set(trades.map((t) => t.ticker))];
   if (!held.length) return res.json({ updated: 0, msg: 'No hay tenencias de renta fija' });
-  let updated = 0, error = null;
+  let updated = 0, error = null, mep = null, mepSource = null, matched = 0;
   try {
-    const auto = await fetchRfPrices(held);
-    updated = await saveRfPricesAuto(auto);
+    const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(trades) });
+    updated = await saveRfPricesAuto(r.prices);
+    mep = r.mep; mepSource = r.mepSource; matched = r.matched;
+    if (!mep) error = 'No se pudo obtener el MEP (probá de nuevo o cargá precios a mano)';
   } catch (e) { error = e.message; }
-  res.json({ updated, error });
+  res.json({ updated, matched, mep, mepSource, error });
 }));
 
 app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
