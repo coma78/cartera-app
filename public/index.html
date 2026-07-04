@@ -212,6 +212,7 @@
         </div>
         <input type="file" id="rf-file-boletos" accept=".xlsx,.xls" style="display:none">
         <input type="file" id="rf-file-crono" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="rf-file-mov" accept=".xlsx,.xls" style="display:none">
       </section>
 
       <!-- RENTA FIJA · MOVIMIENTOS -->
@@ -256,7 +257,10 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Cronograma <span class="muted-sm">cupones y amortizaciones</span></h2>
-            <button class="btn" id="rf-imp-crono" title="Subí el DetallePagos para actualizar los cupones (se mantiene en el tiempo)">🗓️ Importar cronograma</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn" id="rf-imp-mov" title="Subí el export de movimientos para cargar la renta ya cobrada">💵 Importar movimientos</button>
+              <button class="btn" id="rf-imp-crono" title="Subí el DetallePagos para actualizar los cupones (se mantiene en el tiempo)">🗓️ Importar cronograma</button>
+            </div>
           </div>
           <div id="rf-crono-content"></div>
         </div>

@@ -16,8 +16,9 @@ import {
   listRfTrades, saveRfTrades, deleteRfTrade, deleteAllRfTrades,
   listRfPrices, setRfPrice, saveRfPricesAuto, clearRfPrices,
   listRfPayments, saveRfPayments,
+  listRfIncome, saveRfIncome,
 } from './db.js';
-import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex } from './rentafija.js';
+import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
 
 // MEP implícito más reciente a partir de los boletos (respaldo si dolarapi falla).
@@ -385,13 +386,13 @@ app.get('/api/reports/latest', wrap(async (_req, res) => {
 // ==================== RENTA FIJA (ONs + bonos) ====================
 // Cómputo central reutilizable: boletos + precios + cronograma -> cartera.
 async function computeRf() {
-  const [trades, prices, payments] = await Promise.all([listRfTrades(), listRfPrices(), listRfPayments()]);
+  const [trades, prices, payments, income] = await Promise.all([listRfTrades(), listRfPrices(), listRfPayments(), listRfIncome()]);
   const today = new Date().toISOString().slice(0, 10);
   // El cronograma define la tenencia vigente: si hay pagos cargados, sólo se
   // consideran esas especies (las que ya no tenés no figuran).
   const restrictTo = payments.length ? new Set(payments.map((p) => String(p.ticker).toUpperCase().trim())) : null;
-  const { rows, totals } = computePortfolio({ trades, prices, payments, today, restrictTo });
-  return { rows, totals, prices, payments, today, restrictTo };
+  const { rows, totals } = computePortfolio({ trades, prices, payments, income, today, restrictTo });
+  return { rows, totals, prices, payments, income, today, restrictTo };
 }
 
 // Importar boletos del broker (una vez / re-sincronización total).
@@ -495,6 +496,17 @@ app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
 
 app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
 
+// Importar movimientos → renta cobrada histórica por ON (patas USD de "Renta").
+// Body: { rows:[{ descripcion, ticker, moneda, importe, fecha }] }
+app.post('/api/rf/import-movimientos', wrap(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ error: 'No se recibieron filas del archivo' });
+  const income = extractIncome(rows);
+  const saved = await saveRfIncome(income);
+  const rf = await computeRf();
+  res.json({ eventos: saved, rentaCobrada: rf.totals.rentaCobrada, totals: rf.totals });
+}));
+
 // Limpiar precios cacheados (por defecto sólo los automáticos).
 app.post('/api/rf/prices/clear', wrap(async (req, res) => {
   await clearRfPrices({ includeManual: req.body?.includeManual === true });
@@ -537,6 +549,7 @@ app.get('/api/rf/consolidated', wrap(async (_req, res) => {
 app.post('/api/rf/reset', wrap(async (_req, res) => {
   await deleteAllRfTrades();
   await saveRfPayments([]);
+  await saveRfIncome([]);
   res.json({ ok: true });
 }));
 

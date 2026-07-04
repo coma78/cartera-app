@@ -131,6 +131,16 @@ export async function migrate() {
       total        NUMERIC NOT NULL DEFAULT 0
     );
   `);
+  // Renta cobrada histórica (de "movimientos"): cupones/amortizaciones ya pagados.
+  await query(`
+    CREATE TABLE IF NOT EXISTS rf_income (
+      id      SERIAL PRIMARY KEY,
+      ticker  TEXT NOT NULL,
+      fecha   DATE,
+      importe NUMERIC NOT NULL DEFAULT 0,
+      tipo    TEXT NOT NULL DEFAULT 'renta'
+    );
+  `);
 
   console.log('[db] migracion ok');
 }
@@ -436,6 +446,28 @@ export async function listRfPayments() {
     renta: Number(r.renta) || 0, amortizacion: Number(r.amortizacion) || 0, total: Number(r.total) || 0,
   }));
 }
+// ---------- Renta fija: renta cobrada histórica ----------
+export async function listRfIncome() {
+  const { rows } = await query('SELECT ticker, fecha, importe, tipo FROM rf_income');
+  return rows.map((r) => ({
+    ticker: r.ticker,
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : (r.fecha ? String(r.fecha).slice(0, 10) : null),
+    importe: Number(r.importe) || 0, tipo: r.tipo || 'renta',
+  }));
+}
+export async function saveRfIncome(rows = []) {
+  await query('DELETE FROM rf_income');
+  let n = 0;
+  for (const p of rows) {
+    const tk = String(p.ticker || '').toUpperCase().trim();
+    if (!tk || !(Number(p.importe) > 0)) continue;
+    await query('INSERT INTO rf_income (ticker, fecha, importe, tipo) VALUES ($1,$2,$3,$4)',
+      [tk, p.fecha || null, Number(p.importe) || 0, p.tipo === 'ramort' ? 'ramort' : 'renta']);
+    n++;
+  }
+  return n;
+}
+
 export async function saveRfPayments(rows = []) {
   await query('DELETE FROM rf_payments');
   let n = 0;

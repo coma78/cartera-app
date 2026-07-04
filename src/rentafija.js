@@ -121,6 +121,30 @@ export function enrichTrades(rawTrades) {
   }));
 }
 
+// ---------- Renta cobrada histórica (de "movimientos") ----------
+// Cada cupón viene en dos patas el mismo día: una positiva en dólares (lo
+// cobrado) y una negativa en pesos (la conversión). Tomamos la pata positiva
+// en dólares de las filas "Renta" / "Renta y Amortización".
+export function extractIncome(rawRows = []) {
+  const out = [];
+  for (const r of rawRows) {
+    const desc = String(r.descripcion || r.Descripcion || '');
+    const ticker = String(r.ticker || r.Ticker || '').toUpperCase().trim();
+    const moneda = r.moneda || r.Moneda || '';
+    const importe = Number(r.importe ?? r.Importe) || 0;
+    const fecha = r.fecha || r.Concertacion || null;
+    if (!ticker || !(importe > 0) || !isUsd(moneda)) continue;
+    if (/^Renta y Amortizaci/i.test(desc)) out.push({ ticker, fecha: ymd(fecha), importe, tipo: 'ramort' });
+    else if (/^Renta\b/i.test(desc)) out.push({ ticker, fecha: ymd(fecha), importe, tipo: 'renta' });
+  }
+  return out;
+}
+function ymd(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+}
+
 // ---------- Cómputo de la cartera de renta fija ----------
 // trades: [{ ticker, clase, emisor, side('COMPRA'|'VENTA'), cantidad, precio_usd, neto_usd, fecha }]
 // prices: { TICKER: { price, source, updated_at } }  (precio actual en USD par)
@@ -128,7 +152,7 @@ export function enrichTrades(rawTrades) {
 // restrictTo (opcional): Set de tickers vigentes (los del cronograma). Si se
 // pasa, sólo se consideran esas especies (más las cargadas a mano), así las
 // ONs/bonos que ya no tenés desaparecen al subir un cronograma nuevo.
-export function computePortfolio({ trades = [], prices = {}, payments = [], today, restrictTo = null } = {}) {
+export function computePortfolio({ trades = [], prices = {}, payments = [], income = [], today, restrictTo = null } = {}) {
   const hoy = today || new Date().toISOString().slice(0, 10);
 
   // Tickers agregados a mano: siempre se muestran aunque no estén en el cronograma.
@@ -145,16 +169,31 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], toda
     (byTicker[t.ticker] ??= []).push(t);
   }
 
-  // Renta cobrada / próximos pagos por ticker.
-  const paidByTicker = {}, nextByTicker = {};
+  // Próximos pagos por ticker (del cronograma, a futuro).
+  const nextByTicker = {};
   for (const p of payments) {
     const tk = String(p.ticker || '').toUpperCase().trim();
     const renta = Number(p.renta) || 0, amort = Number(p.amortizacion) || 0;
-    if (String(p.fecha) <= hoy) {
-      const g = (paidByTicker[tk] ??= { renta: 0, amort: 0 });
-      g.renta += renta; g.amort += amort;
-    } else if (!nextByTicker[tk] || String(p.fecha) < nextByTicker[tk].fecha) {
+    if (String(p.fecha) > hoy && (!nextByTicker[tk] || String(p.fecha) < nextByTicker[tk].fecha)) {
       nextByTicker[tk] = { fecha: String(p.fecha), renta, amort, total: Number(p.total) || renta + amort };
+    }
+  }
+  // Renta cobrada por ticker: de "movimientos" (income) si hay; si no, del
+  // cronograma con fecha pasada (fallback).
+  const paidByTicker = {};
+  if (income.length) {
+    for (const inc of income) {
+      const tk = String(inc.ticker || '').toUpperCase().trim();
+      const g = (paidByTicker[tk] ??= { renta: 0, amort: 0 });
+      if (inc.tipo === 'ramort') g.amort += Number(inc.importe) || 0;
+      else g.renta += Number(inc.importe) || 0;
+    }
+  } else {
+    for (const p of payments) {
+      if (String(p.fecha) > hoy) continue;
+      const tk = String(p.ticker || '').toUpperCase().trim();
+      const g = (paidByTicker[tk] ??= { renta: 0, amort: 0 });
+      g.renta += Number(p.renta) || 0; g.amort += Number(p.amortizacion) || 0;
     }
   }
 

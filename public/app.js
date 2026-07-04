@@ -1144,6 +1144,8 @@ function bindEvents() {
   document.getElementById('rf-imp-crono').onclick = () => document.getElementById('rf-file-crono').click();
   document.getElementById('rf-file-boletos').addEventListener('change', onImportBoletos);
   document.getElementById('rf-file-crono').addEventListener('change', onImportCronograma);
+  document.getElementById('rf-imp-mov').onclick = () => document.getElementById('rf-file-mov').click();
+  document.getElementById('rf-file-mov').addEventListener('change', onImportMovimientos);
   document.getElementById('rf-refresh').onclick = rfRefreshPrices;
   document.getElementById('rf-add').onclick = openRfTradeForm;
   document.getElementById('rf-setup-hide').onclick = () => { localStorage.setItem('rf_setup_hidden', '1'); applyRfSetupVisibility(); };
@@ -1414,6 +1416,24 @@ async function onImportCronograma(e) {
   } catch (err) { toast('Error al importar cronograma: ' + err.message); }
 }
 
+async function onImportMovimientos(e) {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  if (typeof XLSX === 'undefined') return toast('No se pudo cargar el lector de Excel');
+  toast('Leyendo movimientos…');
+  try {
+    const raw = await readSheet(file);
+    const rows = raw.map(r => ({
+      descripcion: col(r, 'Descripcion', 'Descripción'), ticker: col(r, 'Ticker'),
+      moneda: col(r, 'Moneda'), importe: col(r, 'Importe'),
+      fecha: toYmd(col(r, 'Concertacion', 'Liquidacion', 'Fecha')),
+    })).filter(r => r.descripcion);
+    if (!rows.length) return toast('No se detectaron movimientos');
+    const res = await api('/rf/import-movimientos', { method: 'POST', body: JSON.stringify({ rows }) });
+    toast(`Renta cobrada cargada · ${res.eventos} eventos · ${money(res.rentaCobrada)}`);
+    RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC);
+  } catch (err) { toast('Error al importar movimientos: ' + err.message); }
+}
+
 async function rfRefreshPrices() {
   const b = document.getElementById('rf-refresh'); const o = b.textContent; b.disabled = true; b.textContent = 'Actualizando…';
   try {
@@ -1544,11 +1564,15 @@ async function renderRfCronograma() {
   let payments = []; try { payments = await api('/rf/payments'); } catch { payments = []; }
   const today = new Date().toISOString().slice(0, 10);
   const d = RF_DATA || {};
-  let html = '';
+  const rc = d.totals?.rentaCobrada || 0;
+  const rcBlock = `<div class="cards" style="margin-bottom:14px">
+      <div class="card"><div class="card-label">Renta ya cobrada</div><div class="card-value ${rc > 0 ? 'pos' : ''}">${money(rc)}</div>
+      <div class="muted-sm">de <a href="#" onclick="document.getElementById('rf-file-mov').click();return false">Importar movimientos</a></div></div></div>`;
+  let html = rcBlock;
   if (!payments.length) {
-    html = `<div style="text-align:center;padding:28px 12px;border:1px dashed var(--line);border-radius:12px">
-      <div style="margin-bottom:6px">Todavía no cargaste el cronograma</div>
-      <div class="muted-sm" style="margin-bottom:12px">Subí el DetallePagos del broker para ver cupones y amortizaciones.</div>
+    html += `<div style="text-align:center;padding:24px 12px;border:1px dashed var(--line);border-radius:12px">
+      <div style="margin-bottom:6px">Todavía no cargaste el cronograma futuro</div>
+      <div class="muted-sm" style="margin-bottom:12px">Subí el DetallePagos del broker para ver los próximos cupones y amortizaciones.</div>
       <button class="btn primary" onclick="document.getElementById('rf-file-crono').click()">🗓️ Importar cronograma</button></div>`;
     el.innerHTML = html; return;
   }
