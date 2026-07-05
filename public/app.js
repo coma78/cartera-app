@@ -1830,7 +1830,7 @@ function recomputeYearend() {
     const va = document.getElementById('ye-va-' + i); if (va) va.textContent = fx > 0 ? arsFmt(v * fx) : '—';
   });
   const tu = document.getElementById('ye-tot-u'); if (tu) tu.innerHTML = '<b>' + money(tot) + '</b>';
-  const ta = document.getElementById('ye-tot-a'); if (ta) ta.innerHTML = '<b>' + (fx > 0 ? arsFmt(tot * fx) : '—') + '</b>';
+  const ta = document.getElementById('ye-tot-a'); if (ta) ta.innerHTML = fx > 0 ? '<b>' + arsFmt(tot * fx) + '</b>' : '<span class="muted-sm">cargá el TC ↑</span>';
 }
 function exportYearendPdf() {
   if (!YE_POS.length) return toast('No hay posiciones para exportar');
