@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -138,6 +138,7 @@ function renderSection(sec) {
   else if (sec === 'rf-mov') renderRfMovimientos();
   else if (sec === 'rf-ventas') renderRfVentas();
   else if (sec === 'rf-crono') renderRfCronograma();
+  else if (sec === 'rf-catalogo') renderRfCatalogo();
   else if (sec === 'sugerencias') renderSugerencias();
   else if (sec === 'descubrir') renderDescubrir();
   else if (sec === 'tickers') renderCatalog();
@@ -1159,6 +1160,7 @@ function bindEvents() {
   document.getElementById('rf-refresh').onclick = rfRefreshPrices;
   document.getElementById('rf-add').onclick = () => openRfTradeForm();
   document.getElementById('rfv-go').onclick = registerRfSale;
+  document.getElementById('rf-cat-add').onclick = () => openRfCatalogForm();
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
     try {
@@ -1660,6 +1662,63 @@ async function renderRfCronograma() {
     [0, 1, 0, 0, 0]);
   el.innerHTML = html;
   if ((d.monthly || []).length) rfMonthlyChart('rf-crono-monthly', d.monthly);
+}
+
+// ---- Catálogo de renta fija ----
+let RF_CAT = [];
+async function renderRfCatalogo() {
+  const el = document.getElementById('rf-cat-content'); if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
+  try { RF_CAT = await api('/rf/catalog'); } catch { RF_CAT = []; }
+  if (!RF_CAT.length) { el.innerHTML = '<div class="empty">Catálogo vacío. Usá “＋ Agregar” para cargar ONs/bonos candidatos.</div>'; return; }
+  el.innerHTML = `<table><thead><tr>
+      <th>Ticker</th><th class="hide-sm">Emisor</th><th>Clase</th><th class="num">Rating</th><th class="num">Mín. nom.</th><th class="num hide-sm">Precio</th><th class="num"></th>
+    </tr></thead><tbody>${RF_CAT.map(c => `
+      <tr>
+        <td>${tb(c.ticker)}</td>
+        <td class="hide-sm muted-sm">${esc(c.emisor || '')}</td>
+        <td>${esc(c.clase || '')}</td>
+        <td class="num">${esc(c.rating || '—')}</td>
+        <td class="num">${c.min_nominales ? nf(c.min_nominales) : '—'}</td>
+        <td class="num hide-sm">${c.price != null ? round2(c.price) : '—'}</td>
+        <td class="num row-actions"><button title="Editar" onclick='openRfCatalogForm(${JSON.stringify(c).replace(/'/g, "&#39;")})'>✏️</button><button title="Borrar" onclick="delRfCatalog(${c.id})">🗑️</button></td>
+      </tr>`).join('')}</tbody></table>`;
+}
+function openRfCatalogForm(c) {
+  const edit = c && c.id;
+  const sel = (v, o) => v === o ? ' selected' : '';
+  const v = (k, d = '') => edit && c[k] != null && c[k] !== '' ? c[k] : d;
+  document.getElementById('modal-title').textContent = edit ? 'Editar especie del catálogo' : 'Agregar al catálogo';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label>Ticker<input id="rc-ticker" placeholder="YM34O" value="${esc(v('ticker'))}"></label>
+      <label>Emisor<input id="rc-emisor" placeholder="YPF" value="${esc(v('emisor'))}"></label>
+      <label>Clase<select id="rc-clase"><option${sel(v('clase', 'ON'), 'ON')}>ON</option><option${sel(v('clase'), 'Bono')}>Bono</option></select></label>
+      <label>Moneda<select id="rc-moneda"><option${sel(v('moneda', 'USD'), 'USD')}>USD</option><option${sel(v('moneda'), 'Pesos')}>Pesos</option></select></label>
+      <label>Rating<input id="rc-rating" placeholder="A / BBB…" value="${esc(v('rating'))}"></label>
+      <label>Mínimo de nominales<input id="rc-min" type="number" step="any" placeholder="1000" value="${esc(v('min_nominales'))}"></label>
+      <label style="grid-column:1/3">Notas<input id="rc-notes" value="${esc(v('notes'))}"></label>
+    </div>`;
+  document.getElementById('modal-save').onclick = async () => {
+    const body = {
+      ticker: document.getElementById('rc-ticker').value, emisor: document.getElementById('rc-emisor').value,
+      clase: document.getElementById('rc-clase').value, moneda: document.getElementById('rc-moneda').value,
+      rating: document.getElementById('rc-rating').value, min_nominales: document.getElementById('rc-min').value,
+      notes: document.getElementById('rc-notes').value,
+    };
+    if (!body.ticker) return toast('El ticker es obligatorio');
+    try {
+      if (edit) await api('/rf/catalog/' + c.id, { method: 'PUT', body: JSON.stringify(body) });
+      else await api('/rf/catalog', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Guardado'); renderRfCatalogo();
+    } catch (e) { toast(e.message); }
+  };
+  modal.classList.remove('hidden');
+}
+async function delRfCatalog(id) {
+  if (!confirm('¿Borrar del catálogo?')) return;
+  try { await api('/rf/catalog/' + id, { method: 'DELETE' }); toast('Borrado'); renderRfCatalogo(); }
+  catch (e) { toast(e.message); }
 }
 
 // ---------- Init ----------

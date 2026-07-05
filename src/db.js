@@ -131,6 +131,21 @@ export async function migrate() {
       total        NUMERIC NOT NULL DEFAULT 0
     );
   `);
+  // Catálogo de renta fija: ONs/bonos candidatos (que cargás vos), con rating
+  // y mínimo de nominales para entrar.
+  await query(`
+    CREATE TABLE IF NOT EXISTS rf_catalog (
+      id            SERIAL PRIMARY KEY,
+      ticker        TEXT NOT NULL UNIQUE,
+      emisor        TEXT DEFAULT '',
+      clase         TEXT DEFAULT 'ON',
+      moneda        TEXT DEFAULT 'USD',
+      rating        TEXT DEFAULT '',
+      min_nominales NUMERIC DEFAULT 0,
+      notes         TEXT DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
   // Renta cobrada histórica (de "movimientos"): cupones/amortizaciones ya pagados.
   await query(`
     CREATE TABLE IF NOT EXISTS rf_income (
@@ -462,6 +477,39 @@ export async function listRfPayments() {
     renta: Number(r.renta) || 0, amortizacion: Number(r.amortizacion) || 0, total: Number(r.total) || 0,
   }));
 }
+// ---------- Renta fija: catálogo ----------
+export async function listRfCatalog() {
+  const { rows } = await query('SELECT * FROM rf_catalog ORDER BY ticker ASC');
+  return rows;
+}
+export async function addRfCatalog(c) {
+  const tk = String(c.ticker || '').toUpperCase().trim();
+  const { rows } = await query(
+    `INSERT INTO rf_catalog (ticker, emisor, clase, moneda, rating, min_nominales, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (ticker) DO UPDATE SET
+       emisor=EXCLUDED.emisor, clase=EXCLUDED.clase, moneda=EXCLUDED.moneda,
+       rating=EXCLUDED.rating, min_nominales=EXCLUDED.min_nominales, notes=EXCLUDED.notes
+     RETURNING *`,
+    [tk, c.emisor || '', c.clase || 'ON', c.moneda || 'USD', c.rating || '', Number(c.min_nominales) || 0, c.notes || '']
+  );
+  return rows[0];
+}
+export async function updateRfCatalog(id, c) {
+  const { rows } = await query(
+    `UPDATE rf_catalog SET
+       ticker=COALESCE($2,ticker), emisor=COALESCE($3,emisor), clase=COALESCE($4,clase),
+       moneda=COALESCE($5,moneda), rating=COALESCE($6,rating), min_nominales=COALESCE($7,min_nominales), notes=COALESCE($8,notes)
+     WHERE id=$1 RETURNING *`,
+    [id, c.ticker ? String(c.ticker).toUpperCase().trim() : null, c.emisor ?? null, c.clase ?? null,
+     c.moneda ?? null, c.rating ?? null, c.min_nominales != null ? Number(c.min_nominales) : null, c.notes ?? null]
+  );
+  return rows[0];
+}
+export async function deleteRfCatalog(id) {
+  await query('DELETE FROM rf_catalog WHERE id = $1', [id]);
+}
+
 // ---------- Renta fija: renta cobrada histórica ----------
 export async function listRfIncome() {
   const { rows } = await query('SELECT ticker, fecha, importe, tipo FROM rf_income');

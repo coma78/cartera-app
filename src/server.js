@@ -17,6 +17,7 @@ import {
   listRfPrices, setRfPrice, saveRfPricesAuto, clearRfPrices,
   listRfPayments, saveRfPayments,
   listRfIncome, saveRfIncome,
+  listRfCatalog, addRfCatalog, updateRfCatalog, deleteRfCatalog,
 } from './db.js';
 import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
@@ -505,9 +506,9 @@ app.post('/api/rf/price', wrap(async (req, res) => {
 
 // Refrescar precios automáticos desde data912.
 app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
-  const trades = await listRfTrades();
-  const held = [...new Set(trades.map((t) => t.ticker))];
-  if (!held.length) return res.json({ updated: 0, msg: 'No hay tenencias de renta fija' });
+  const [trades, cat] = await Promise.all([listRfTrades(), listRfCatalog()]);
+  const held = [...new Set([...trades.map((t) => t.ticker), ...cat.map((c) => c.ticker)])];
+  if (!held.length) return res.json({ updated: 0, msg: 'No hay tenencias ni catálogo de renta fija' });
   let updated = 0, error = null, mep = null, mepSource = null, matched = 0;
   try {
     const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(trades) });
@@ -519,6 +520,19 @@ app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
 }));
 
 app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
+
+// ---- Catálogo de renta fija (ONs/bonos candidatos) ----
+app.get('/api/rf/catalog', wrap(async (_req, res) => {
+  const [cat, prices] = await Promise.all([listRfCatalog(), listRfPrices()]);
+  res.json(cat.map((c) => ({ ...c, price: prices[c.ticker] ? prices[c.ticker].price : null, priceSource: prices[c.ticker] ? prices[c.ticker].source : null })));
+}));
+app.post('/api/rf/catalog', wrap(async (req, res) => {
+  const ticker = String(req.body?.ticker || '').toUpperCase().trim();
+  if (!ticker) return res.status(400).json({ error: 'El ticker es obligatorio' });
+  res.json(await addRfCatalog(req.body));
+}));
+app.put('/api/rf/catalog/:id', wrap(async (req, res) => res.json(await updateRfCatalog(Number(req.params.id), req.body))));
+app.delete('/api/rf/catalog/:id', wrap(async (req, res) => { await deleteRfCatalog(Number(req.params.id)); res.json({ ok: true }); }));
 
 // Importar movimientos → renta cobrada histórica por ON (patas USD de "Renta").
 // Body: { rows:[{ descripcion, ticker, moneda, importe, fecha }] }
