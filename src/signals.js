@@ -8,7 +8,8 @@ import { getStoredSeries, saveSeries } from './db.js';
 const FMP_KEY = process.env.FMP_API_KEY || '';
 const TTL = 6 * 3600 * 1000; // 6 horas
 const _cache = new Map();     // ticker -> { ts, sig }
-const ALIAS = { BRKB: 'BRK.B' };
+// Símbolos para FMP (histórico): las clases de acción usan guion (BRK-B).
+const ALIAS = { BRKB: 'BRK-B' };
 let _lastError = null;
 
 export function signalsEnabled() { return !!FMP_KEY; }
