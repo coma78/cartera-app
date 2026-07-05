@@ -1799,8 +1799,21 @@ async function renderYearend() {
   YE_META = { year: d.year, cutoff: d.cutoff };
   yEl.value = d.year;
   document.getElementById('ye-sub').textContent = 'al ' + fmtDate(d.cutoff);
-  YE_POS = [...d.cedears, ...d.rentafija].map(p => ({ ...p, precio: p.precioProvisorio }));
+  YE_POS = [...d.cedears, ...d.rentafija].map(p => ({
+    ...p, precio: p.precioAuto != null ? p.precioAuto : p.precioProvisorio, source: p.source || 'falta',
+  }));
   renderYearendTable();
+}
+const yeStatus = (s) => s === 'auto'
+  ? '<span class="pos" title="Precio de cierre al 31/12 (histórico)">✓ 31/12</span>'
+  : s === 'manual' ? '<span class="muted-sm" title="Cargado a mano">✎ manual</span>'
+    : '<span class="neg" title="Sin precio al 31/12: provisorio al costo, completalo">⚠ falta</span>';
+function updateYeSummary() {
+  const el = document.getElementById('ye-summary'); if (!el) return;
+  const auto = YE_POS.filter(p => p.source === 'auto').length;
+  const manual = YE_POS.filter(p => p.source === 'manual').length;
+  const falta = YE_POS.filter(p => p.source === 'falta').length;
+  el.innerHTML = `${auto} con precio 31/12 (auto)${manual ? ` · ${manual} a mano` : ''}${falta ? ` · <span class="neg">${falta} por completar</span>` : ' · <span class="pos">todo con precio ✓</span>'}`;
 }
 function renderYearendTable() {
   const el = document.getElementById('ye-content'); if (!el) return;
@@ -1812,15 +1825,22 @@ function renderYearendTable() {
       <td>${tb(p.ticker)} <span class="muted-sm">${esc(p.tipo)}${p.emisor ? ' · ' + esc(p.emisor) : ''}</span></td>
       <td class="num">${nf(p.cantidad)}</td>
       <td class="num"><input type="number" step="any" data-i="${i}" class="ye-px" value="${p.precio}" style="width:96px"></td>
+      <td id="ye-st-${i}">${yeStatus(p.source)}</td>
       <td class="num" id="ye-vu-${i}">${money(v)}</td>
       <td class="num" id="ye-va-${i}">${fx > 0 ? arsFmt(v * fx) : '—'}</td>
     </tr>`;
   }).join('');
-  el.innerHTML = `<table><thead><tr><th>Ticker</th><th class="num">Cantidad</th><th class="num">Precio 31/12 (USD)</th><th class="num">Valor USD</th><th class="num">Valor ARS</th></tr></thead>
+  el.innerHTML = `<div class="muted-sm" id="ye-summary" style="margin-bottom:8px"></div>
+    <table><thead><tr><th>Ticker</th><th class="num">Cantidad</th><th class="num">Precio 31/12 (USD)</th><th>Estado</th><th class="num">Valor USD</th><th class="num">Valor ARS</th></tr></thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td><b>Total</b></td><td></td><td></td><td class="num" id="ye-tot-u"></td><td class="num" id="ye-tot-a"></td></tr></tfoot></table>`;
-  el.querySelectorAll('.ye-px').forEach(inp => inp.addEventListener('input', () => { YE_POS[Number(inp.dataset.i)].precio = Number(inp.value) || 0; recomputeYearend(); }));
-  recomputeYearend();
+    <tfoot><tr><td><b>Total</b></td><td></td><td></td><td></td><td class="num" id="ye-tot-u"></td><td class="num" id="ye-tot-a"></td></tr></tfoot></table>`;
+  el.querySelectorAll('.ye-px').forEach(inp => inp.addEventListener('input', () => {
+    const i = Number(inp.dataset.i);
+    YE_POS[i].precio = Number(inp.value) || 0; YE_POS[i].source = 'manual';
+    const st = document.getElementById('ye-st-' + i); if (st) st.innerHTML = yeStatus('manual');
+    recomputeYearend(); updateYeSummary();
+  }));
+  recomputeYearend(); updateYeSummary();
 }
 function recomputeYearend() {
   const fx = yeFx(); let tot = 0;

@@ -642,10 +642,28 @@ app.get('/api/yearend', wrap(async (req, res) => {
     g.quantity += qty;
     g.cost += qty * (Number(h.buy_price) || 0) / (Number(h.ratio) || 1); // costo por CEDEAR en USD
   }
-  const cedears = Object.values(cedByTk).map((g) => ({
-    ticker: g.ticker, tipo: 'CEDEAR', cantidad: g.quantity, ratio: g.ratio,
-    precioProvisorio: g.quantity > 0 ? Math.round(g.cost / g.quantity * 10000) / 10000 : 0,
-  })).sort((a, b) => a.ticker.localeCompare(b.ticker));
+  // Precio histórico al 31/12 (best-effort, FMP): el cierre más cercano <= cutoff.
+  const cedTickers = Object.keys(cedByTk);
+  const hist = (signalsEnabled() && cedTickers.length) ? await getHistory(cedTickers) : {};
+  const closeAt = (series, lim) => {
+    if (!Array.isArray(series) || !series.length) return null;
+    let best = null;
+    for (const pt of series) {
+      const dt = String(pt.date).slice(0, 10);
+      if (dt <= lim && (!best || dt > best.date)) best = { date: dt, close: Number(pt.close) };
+    }
+    return best && best.close > 0 ? best : null;
+  };
+  const cedears = Object.values(cedByTk).map((g) => {
+    const provisorio = g.quantity > 0 ? Math.round(g.cost / g.quantity * 10000) / 10000 : 0;
+    const c31 = closeAt(hist[g.ticker], cutoff);
+    const precioAuto = c31 ? Math.round(c31.close / g.ratio * 10000) / 10000 : null;
+    return {
+      ticker: g.ticker, tipo: 'CEDEAR', cantidad: g.quantity, ratio: g.ratio,
+      precioProvisorio: provisorio, precioAuto, fechaAuto: c31 ? c31.date : null,
+      source: precioAuto != null ? 'auto' : 'falta',
+    };
+  }).sort((a, b) => a.ticker.localeCompare(b.ticker));
 
   // --- Renta fija (ONs + bonos) al cutoff ---
   const rfByTk = {};
@@ -661,9 +679,12 @@ app.get('/api/yearend', wrap(async (req, res) => {
   const rentafija = Object.values(rfByTk).filter((g) => g.vn > 0).map((g) => ({
     ticker: g.ticker, tipo: g.clase || 'ON', emisor: g.emisor || '', cantidad: g.vn, ratio: 1,
     precioProvisorio: g.nom > 0 ? Math.round(g.cost / g.nom * 10000) / 10000 : 0,
+    precioAuto: null, fechaAuto: null, source: 'falta', // sin fuente histórica al 31/12
   })).sort((a, b) => a.ticker.localeCompare(b.ticker));
 
-  res.json({ year, cutoff, cedears, rentafija });
+  const conPrecio = cedears.filter((c) => c.source === 'auto').length;
+  const faltan = cedears.length + rentafija.length - conPrecio;
+  res.json({ year, cutoff, cedears, rentafija, conPrecio, faltan });
 }));
 
 // ---- Static UI (la portada pide login si el SSO está activo) ----
