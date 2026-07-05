@@ -1391,6 +1391,7 @@ function drawRfGain() {
   const capPct = rows.map(r => round2(r.ganCapitalPct || 0));
   const rentaPct = rows.map(r => { const inv = (Number(r.precioCompra) || 0) * (Number(r.vn) || 0); return inv > 0 ? round2((Number(r.rentaCobrada) || 0) / inv * 100) : 0; });
   if (CHARTS['rfa-gain']) CHARTS['rfa-gain'].destroy();
+  if (cv.parentElement) cv.parentElement.style.height = Math.max(240, rows.length * 26) + 'px';
   let datasets, stacked = false;
   if (RF_GAIN_MODE === 'renta') datasets = [{ data: rentaPct, backgroundColor: '#34d399', borderRadius: 4 }];
   else if (RF_GAIN_MODE === 'ambas') { stacked = true; datasets = [{ label: 'Capital', data: capPct, backgroundColor: '#3b82f6', borderRadius: 4 }, { label: 'Renta', data: rentaPct, backgroundColor: '#34d399', borderRadius: 4 }]; }
@@ -1400,7 +1401,7 @@ function drawRfGain() {
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: RF_GAIN_MODE === 'ambas', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (x) => (x.dataset.label ? x.dataset.label + ': ' : '') + x.raw + '%' } } },
-      scales: { x: { stacked, ticks: { callback: (v) => v + '%' } }, y: { stacked } },
+      scales: { x: { stacked, ticks: { callback: (v) => v + '%' } }, y: { stacked, ticks: { autoSkip: false, font: { size: 11 } } } },
     },
   });
 }
