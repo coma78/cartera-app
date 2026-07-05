@@ -395,6 +395,22 @@ export async function saveRfTrades(trades = [], { source = 'import' } = {}) {
   }
   return n;
 }
+export async function updateRfTrade(id, t) {
+  const { rows } = await query(
+    `UPDATE rf_trades SET
+       ticker=$2, especie=$3, emisor=$4, clase=$5, side=$6, cantidad=$7,
+       precio=$8, moneda=$9, neto=$10, precio_usd=$11, neto_usd=$12, fecha=$13
+     WHERE id=$1 RETURNING *`,
+    [id, String(t.ticker || '').toUpperCase().trim(), t.especie || '', t.emisor || '', t.clase,
+     String(t.side || 'COMPRA').toUpperCase(), Number(t.cantidad) || 0, t.precio ?? null,
+     t.moneda || '', t.neto ?? null, t.precio_usd ?? null, t.neto_usd ?? null, t.fecha || null]
+  );
+  return rows[0];
+}
+export async function getRfTrade(id) {
+  const { rows } = await query('SELECT * FROM rf_trades WHERE id = $1', [id]);
+  return rows[0] || null;
+}
 export async function deleteRfTrade(id) {
   await query('DELETE FROM rf_trades WHERE id = $1', [id]);
 }

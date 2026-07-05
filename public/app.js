@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { rendimientos: 'Rendimientos', resumen: 'Resumen', cartera: 'Cartera', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -134,6 +134,7 @@ function renderSection(sec) {
   else if (sec === 'resumen') renderResumen();
   else if (sec === 'cartera') renderCartera();
   else if (sec === 'rentafija') renderRentaFija();
+  else if (sec === 'rf-analisis') renderRfAnalisis();
   else if (sec === 'rf-mov') renderRfMovimientos();
   else if (sec === 'rf-ventas') renderRfVentas();
   else if (sec === 'rf-crono') renderRfCronograma();
@@ -1156,9 +1157,7 @@ function bindEvents() {
   document.getElementById('rf-imp-mov').onclick = () => document.getElementById('rf-file-mov').click();
   document.getElementById('rf-file-mov').addEventListener('change', onImportMovimientos);
   document.getElementById('rf-refresh').onclick = rfRefreshPrices;
-  document.getElementById('rf-add').onclick = openRfTradeForm;
-  document.getElementById('rf-setup-hide').onclick = () => { localStorage.setItem('rf_setup_hidden', '1'); applyRfSetupVisibility(); };
-  document.getElementById('rf-setup-show').onclick = () => { localStorage.removeItem('rf_setup_hidden'); applyRfSetupVisibility(); };
+  document.getElementById('rf-add').onclick = () => openRfTradeForm();
   document.getElementById('rfv-go').onclick = registerRfSale;
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
@@ -1375,6 +1374,60 @@ function rfDonut(id, c) {
   });
 }
 
+// ---- Rendimientos RF (análisis) ----
+async function renderRfAnalisis() {
+  const el = document.getElementById('rf-analisis-content'); if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:20px 4px">Cargando…</div>';
+  await loadRf();
+  const d = RF_DATA || {}; const t = d.totals || {};
+  const rows = (d.rows || []).filter(r => r.valorActual != null);
+  if (!rows.length) { el.innerHTML = '<div class="empty">Todavía no hay datos de renta fija. Importá boletos en la sección Cartera.</div>'; return; }
+  let html = rfKpiCards([
+    { label: 'Capital aportado', value: money(t.capitalAportado) },
+    { label: 'Valor actual', value: money(t.valorActual) },
+    { label: 'Ganancia total', value: money(t.gananciaTotal), sub: rfPct(t.rendimientoPct), cls: cls(t.gananciaTotal) },
+    { label: 'Renta cobrada', value: money(t.rentaCobrada), cls: t.rentaCobrada > 0 ? 'pos' : '' },
+    { label: 'Posiciones', value: String(t.posiciones || rows.length) },
+  ]);
+  html += `<div class="grid2" style="margin-top:16px">
+    <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head"><h2 style="font-size:15px">Peso por especie</h2></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-dist"></canvas></div></div>
+    <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head"><h2 style="font-size:15px">Ganancia de capital (%)</h2></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-gain"></canvas></div></div>
+  </div>`;
+  const totVal = rows.reduce((a, r) => a + (r.valorActual || 0), 0);
+  html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Detalle por especie</h2></div>`;
+  html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada'],
+    [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0)).map(r => [
+      tb(r.ticker),
+      money(r.valorActual),
+      totVal > 0 ? round2(r.valorActual / totVal * 100) + '%' : '—',
+      r.ganCapital != null ? `<span class="${cls(r.ganCapital)}">${money(r.ganCapital)}${r.ganCapitalPct != null ? ' · ' + rfPct(r.ganCapitalPct) : ''}</span>` : '—',
+      r.rentaCobrada > 0 ? `<span class="pos">${money(r.rentaCobrada)}</span>` : '—',
+    ]), [1, 0, 0, 0, 0]);
+  el.innerHTML = html;
+  const labels = rows.map(r => r.ticker);
+  rfDoughnutBy('rfa-dist', labels, rows.map(r => round2((r.valorActual || 0) / (totVal || 1) * 100)));
+  const gains = rows.map(r => round2(r.ganCapitalPct || 0));
+  rfBarSigned('rfa-gain', labels, gains);
+}
+function rfDoughnutBy(id, labels, data) {
+  const cv = document.getElementById(id); if (!cv || typeof Chart === 'undefined') return;
+  if (CHARTS[id]) CHARTS[id].destroy();
+  CHARTS[id] = new Chart(cv, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: palette(labels.length), borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 } } }, tooltip: { callbacks: { label: (x) => `${x.label}: ${x.raw}%` } } } },
+  });
+}
+function rfBarSigned(id, labels, data) {
+  const cv = document.getElementById(id); if (!cv || typeof Chart === 'undefined') return;
+  if (CHARTS[id]) CHARTS[id].destroy();
+  CHARTS[id] = new Chart(cv, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: data.map(v => v >= 0 ? '#34d399' : '#f87171'), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${x.raw}%` } } }, scales: { x: { ticks: { callback: (v) => v + '%' } } } },
+  });
+}
+
 // ---- Imports (xlsx en el navegador con SheetJS) ----
 function toYmd(v) {
   if (v == null || v === '') return null;
@@ -1464,18 +1517,21 @@ async function rfSetPrice(ticker, cur) {
   try { await api('/rf/price', { method: 'POST', body: JSON.stringify({ ticker, price }) }); toast('Precio guardado'); RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC); }
   catch (e) { toast(e.message); }
 }
-function openRfTradeForm() {
-  document.getElementById('modal-title').textContent = 'Agregar compra / venta de ON o bono';
+function openRfTradeForm(t) {
+  const edit = t && t.id;
+  const sel = (v, opt) => v === opt ? ' selected' : '';
+  const v = (k, d = '') => edit && t[k] != null && t[k] !== '' ? t[k] : d;
+  document.getElementById('modal-title').textContent = edit ? 'Editar movimiento' : 'Agregar compra / venta de ON o bono';
   document.getElementById('modal-body').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <label>Ticker<input id="rf-t-ticker" placeholder="YM34O"></label>
-      <label>Operación<select id="rf-t-side"><option value="COMPRA">Compra</option><option value="VENTA">Venta</option></select></label>
-      <label>Tipo<select id="rf-t-clase"><option value="ON">ON</option><option value="Bono">Bono</option></select></label>
-      <label>Nominales (VN)<input id="rf-t-cant" type="number" step="any" placeholder="1000"></label>
-      <label>Precio<input id="rf-t-precio" type="number" step="any" placeholder="1.09"></label>
-      <label>Moneda<select id="rf-t-moneda"><option>Dólares</option><option>Pesos</option></select></label>
-      <label>Fecha<input id="rf-t-fecha" type="date"></label>
-      <label>Emisor (opcional)<input id="rf-t-emisor" placeholder="YPF"></label>
+      <label>Ticker<input id="rf-t-ticker" placeholder="YM34O" value="${esc(v('ticker'))}"></label>
+      <label>Operación<select id="rf-t-side"><option value="COMPRA"${sel(v('side', 'COMPRA'), 'COMPRA')}>Compra</option><option value="VENTA"${sel(v('side'), 'VENTA')}>Venta</option></select></label>
+      <label>Tipo<select id="rf-t-clase"><option value="ON"${sel(v('clase', 'ON'), 'ON')}>ON</option><option value="Bono"${sel(v('clase'), 'Bono')}>Bono</option></select></label>
+      <label>Nominales (VN)<input id="rf-t-cant" type="number" step="any" placeholder="1000" value="${esc(v('cantidad'))}"></label>
+      <label>Precio<input id="rf-t-precio" type="number" step="any" placeholder="1.09" value="${esc(v('precio'))}"></label>
+      <label>Moneda<select id="rf-t-moneda"><option${sel(v('moneda', 'Dólares'), 'Dólares')}>Dólares</option><option${sel(v('moneda'), 'Pesos')}>Pesos</option></select></label>
+      <label>Fecha<input id="rf-t-fecha" type="date" value="${esc(v('fecha'))}"></label>
+      <label>Emisor (opcional)<input id="rf-t-emisor" placeholder="YPF" value="${esc(v('emisor'))}"></label>
     </div>
     <p class="muted-sm" style="margin:8px 0 0">Si la operación es en pesos, se convierte a USD con el MEP de esa fecha automáticamente.</p>`;
   document.getElementById('modal-save').onclick = async () => {
@@ -1490,8 +1546,12 @@ function openRfTradeForm() {
       emisor: document.getElementById('rf-t-emisor').value,
     };
     if (!body.ticker || !(Number(body.cantidad) > 0)) return toast('Ticker y nominales son obligatorios');
-    try { await api('/rf/trade', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Movimiento agregado'); RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC); }
-    catch (e) { toast(e.message); }
+    try {
+      if (edit) await api('/rf/trade/' + t.id, { method: 'PUT', body: JSON.stringify(body) });
+      else await api('/rf/trade', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast(edit ? 'Movimiento actualizado' : 'Movimiento agregado');
+      RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC);
+    } catch (e) { toast(e.message); }
   };
   modal.classList.remove('hidden');
 }
@@ -1508,7 +1568,6 @@ function applyRfSetupVisibility() {
   if (show) show.style.display = hidden ? '' : 'none';
 }
 async function renderRfMovimientos() {
-  applyRfSetupVisibility();
   const el = document.getElementById('rf-mov-content'); if (!el) return;
   el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
   await loadRfTrades();
@@ -1521,7 +1580,7 @@ async function renderRfMovimientos() {
       fmtDate(t.fecha),
       `<span class="${t.side === 'VENTA' ? 'neg' : 'pos'}">${t.side === 'VENTA' ? 'Venta' : 'Compra'}</span>`,
       nf(t.cantidad), t.precio != null ? round2(t.precio) : '—',
-      `<button class="rf-deltrade" title="Borrar" data-id="${t.id}">🗑️</button>`,
+      `<button title="Editar" onclick='openRfTradeForm(${JSON.stringify({ id: t.id, ticker: t.ticker, side: t.side, clase: t.clase, cantidad: Number(t.cantidad), precio: t.precio != null ? Number(t.precio) : '', moneda: t.moneda || '', emisor: t.emisor || '', fecha: t.fecha ? String(t.fecha).slice(0, 10) : '' }).replace(/'/g, '&#39;')})'>✏️</button><button class="rf-deltrade" title="Borrar" data-id="${t.id}">🗑️</button>`,
     ]),
     [1, 0, 0, 0, 0, 0]
   );

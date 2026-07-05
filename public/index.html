@@ -20,15 +20,16 @@
     <aside class="sidebar">
       <div class="brand">📈 Car te re ar</div>
       <nav id="nav">
-        <a class="nav-item active" data-sec="rendimientos">📈 Rendimientos</a>
+        <a class="nav-item active" data-sec="rendimientos">📈 Rendimientos Totales</a>
         <div class="nav-group">Renta variable</div>
-        <a class="nav-item" data-sec="resumen">📊 Resumen</a>
+        <a class="nav-item" data-sec="resumen">📊 Rendimiento RV</a>
         <a class="nav-item" data-sec="cartera">💼 Cartera</a>
         <a class="nav-item" data-sec="tenencias">➕ Movimientos</a>
         <a class="nav-item" data-sec="ventas">💰 Ventas</a>
         <a class="nav-item" data-sec="tickers">🏷️ Catálogo</a>
         <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
         <div class="nav-group">Renta fija</div>
+        <a class="nav-item" data-sec="rf-analisis">📊 Rendimientos RF</a>
         <a class="nav-item" data-sec="rentafija">💼 Cartera</a>
         <a class="nav-item" data-sec="rf-mov">➕ Movimientos</a>
         <a class="nav-item" data-sec="rf-ventas">💰 Ventas</a>
@@ -203,6 +204,7 @@
             <h2>Cartera <span class="muted-sm">ON y bonos</span></h2>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="btn" id="rf-refresh" title="Traer cotizaciones de data912">🔄 Actualizar precios</button>
+              <button class="btn" id="rf-imp-boletos" title="Carga inicial masiva desde el export de boletos del broker">⬆️ Importar boletos</button>
             </div>
           </div>
           <div id="rf-content"></div>
@@ -215,23 +217,20 @@
         <input type="file" id="rf-file-mov" accept=".xlsx,.xls" style="display:none">
       </section>
 
+      <!-- RENTA FIJA · RENDIMIENTOS (análisis) -->
+      <section id="sec-rf-analisis" class="section hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Rendimientos RF <span class="muted-sm">análisis de ONs y bonos</span></h2></div>
+          <div id="rf-analisis-content"></div>
+        </div>
+      </section>
+
       <!-- RENTA FIJA · MOVIMIENTOS -->
       <section id="sec-rf-mov" class="section hidden">
-        <div class="panel" id="rf-setup-panel">
-          <div class="panel-head">
-            <h2>Carga inicial <span class="muted-sm">una sola vez</span></h2>
-            <button class="btn" id="rf-setup-hide" title="Ocultar la carga masiva una vez que terminaste">Ocultar</button>
-          </div>
-          <p class="muted-sm" style="margin:0 0 10px">Subí el export de <b>boletos</b> del broker para cargar de una todas tus ONs y bonos. Después administrás el día a día abajo.</p>
-          <button class="btn primary" id="rf-imp-boletos">⬆️ Importar boletos</button>
-        </div>
         <div class="panel">
           <div class="panel-head">
             <h2>Movimientos <span class="muted-sm">compras y ventas</span></h2>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn" id="rf-setup-show" style="display:none" title="Volver a mostrar la carga masiva">Carga masiva</button>
-              <button class="btn primary" id="rf-add">＋ Agregar</button>
-            </div>
+            <button class="btn primary" id="rf-add">＋ Agregar</button>
           </div>
           <div id="rf-mov-content"></div>
         </div>

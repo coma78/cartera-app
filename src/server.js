@@ -13,12 +13,12 @@ import {
   getSetting, setSetting,
   listSales, sellFromLot, deleteSaleRestore,
   saveSeries, deleteAllSeries,
-  listRfTrades, saveRfTrades, deleteRfTrade, deleteAllRfTrades,
+  listRfTrades, saveRfTrades, deleteRfTrade, deleteAllRfTrades, updateRfTrade,
   listRfPrices, setRfPrice, saveRfPricesAuto, clearRfPrices,
   listRfPayments, saveRfPayments,
   listRfIncome, saveRfIncome,
 } from './db.js';
-import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome } from './rentafija.js';
+import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
 
 // MEP implícito más reciente a partir de los boletos (respaldo si dolarapi falla).
@@ -461,6 +461,30 @@ app.post('/api/rf/trade', wrap(async (req, res) => {
   const all = enrichTrades([...existing.map((t) => ({ especie: t.especie, ticker: t.ticker, emisor: t.emisor, clase: t.clase, side: t.side, cantidad: t.cantidad, precio: t.precio, neto: t.neto, moneda: t.moneda, fecha: t.fecha instanceof Date ? t.fecha.toISOString().slice(0, 10) : t.fecha })), raw]);
   const mine = all[all.length - 1];
   await saveRfTrades([mine], { source: 'manual' });
+  const rf = await computeRf();
+  res.json({ ok: true, totals: rf.totals });
+}));
+app.put('/api/rf/trade/:id', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  const ticker = String(b.ticker || '').toUpperCase().trim();
+  if (!ticker || !(Number(b.cantidad) > 0)) return res.status(400).json({ error: 'Ticker y nominales son obligatorios' });
+  const clase = b.clase || classify(b.especie, ticker) || 'ON';
+  if (!isRF(clase)) return res.status(400).json({ error: 'Sólo ONs o bonos van en renta fija' });
+  const trades = await listRfTrades();
+  const idx = buildMepIndex(trades.map((t) => ({ fecha: t.fecha instanceof Date ? t.fecha.toISOString().slice(0, 10) : t.fecha, ticker: t.ticker, moneda: t.moneda, precio: t.precio })));
+  const fb = fallbackMep(idx);
+  const raw = {
+    ticker, moneda: b.moneda || 'Dólares', precio: b.precio != null ? Number(b.precio) : null,
+    neto: b.neto != null ? Number(b.neto) : (Number(b.cantidad) * Number(b.precio) || null),
+    fecha: b.fecha ? String(b.fecha).slice(0, 10) : null,
+  };
+  await updateRfTrade(id, {
+    ticker, especie: b.especie || ticker, emisor: b.emisor || emisorFrom(b.especie || ticker), clase,
+    side: b.side, cantidad: b.cantidad, precio: raw.precio, moneda: raw.moneda, neto: raw.neto,
+    precio_usd: Math.round(precioUsdOf(raw, idx, fb) * 10000) / 10000,
+    neto_usd: Math.round(netoUsdOf(raw, idx, fb) * 100) / 100, fecha: raw.fecha,
+  });
   const rf = await computeRf();
   res.json({ ok: true, totals: rf.totals });
 }));
