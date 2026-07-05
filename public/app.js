@@ -1383,13 +1383,16 @@ function rfDonut(id, c) {
 }
 
 // ---- Rendimientos RF (análisis) ----
-let RF_GAIN_MODE = 'capital', RF_AN_ROWS = [];
+let RF_GAIN_MODE = 'capital', RF_AN_ROWS = [], RF_GAIN_ANUAL = false;
 function drawRfGain() {
   const rows = RF_AN_ROWS; if (!rows.length) return;
   const cv = document.getElementById('rfa-gain'); if (!cv || typeof Chart === 'undefined') return;
   const labels = rows.map(r => r.ticker);
-  const capPct = rows.map(r => round2(r.ganCapitalPct || 0));
-  const rentaPct = rows.map(r => { const inv = (Number(r.precioCompra) || 0) * (Number(r.vn) || 0); return inv > 0 ? round2((Number(r.rentaCobrada) || 0) / inv * 100) : 0; });
+  const anios = rows.map(r => Number(r.aniosTenido) > 0 ? Number(r.aniosTenido) : 1);
+  let capPct = rows.map(r => round2(r.ganCapitalPct || 0));
+  let rentaPct = rows.map(r => { const inv = (Number(r.precioCompra) || 0) * (Number(r.vn) || 0); return inv > 0 ? round2((Number(r.rentaCobrada) || 0) / inv * 100) : 0; });
+  if (RF_GAIN_ANUAL) { capPct = capPct.map((v, i) => round2(v / anios[i])); rentaPct = rentaPct.map((v, i) => round2(v / anios[i])); }
+  const suf = RF_GAIN_ANUAL ? '% anual' : '%';
   if (CHARTS['rfa-gain']) CHARTS['rfa-gain'].destroy();
   if (cv.parentElement) cv.parentElement.style.height = Math.max(240, rows.length * 26) + 'px';
   let datasets, stacked = false;
@@ -1400,7 +1403,7 @@ function drawRfGain() {
     type: 'bar', data: { labels, datasets },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: RF_GAIN_MODE === 'ambas', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (x) => (x.dataset.label ? x.dataset.label + ': ' : '') + x.raw + '%' } } },
+      plugins: { legend: { display: RF_GAIN_MODE === 'ambas', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (x) => (x.dataset.label ? x.dataset.label + ': ' : '') + x.raw + suf } } },
       scales: { x: { stacked, ticks: { callback: (v) => v + '%' } }, y: { stacked, ticks: { autoSkip: false, font: { size: 11 } } } },
     },
   });
@@ -1422,11 +1425,17 @@ async function renderRfAnalisis() {
   html += `<div class="grid2" style="margin-top:16px">
     <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head"><h2 style="font-size:15px">Peso por especie</h2></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-dist"></canvas></div></div>
     <div class="panel" style="box-shadow:none;border:1px solid var(--line)">
-      <div class="panel-head"><h2 style="font-size:15px">Ganancia (%)</h2>
-        <div class="seg">
-          <button class="seg-btn ${RF_GAIN_MODE === 'capital' ? 'active' : ''}" data-rfgain="capital">Capital</button>
-          <button class="seg-btn ${RF_GAIN_MODE === 'renta' ? 'active' : ''}" data-rfgain="renta">Renta</button>
-          <button class="seg-btn ${RF_GAIN_MODE === 'ambas' ? 'active' : ''}" data-rfgain="ambas">Ambas</button>
+      <div class="panel-head" style="flex-wrap:wrap;gap:6px"><h2 style="font-size:15px">Ganancia (%)</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div class="seg">
+            <button class="seg-btn ${RF_GAIN_MODE === 'capital' ? 'active' : ''}" data-rfgain="capital">Capital</button>
+            <button class="seg-btn ${RF_GAIN_MODE === 'renta' ? 'active' : ''}" data-rfgain="renta">Renta</button>
+            <button class="seg-btn ${RF_GAIN_MODE === 'ambas' ? 'active' : ''}" data-rfgain="ambas">Ambas</button>
+          </div>
+          <div class="seg">
+            <button class="seg-btn ${!RF_GAIN_ANUAL ? 'active' : ''}" data-rfper="acum">Acum.</button>
+            <button class="seg-btn ${RF_GAIN_ANUAL ? 'active' : ''}" data-rfper="anual">Anual</button>
+          </div>
         </div>
       </div>
       <div class="chart-wrap" style="height:240px"><canvas id="rfa-gain"></canvas></div>
@@ -1434,14 +1443,15 @@ async function renderRfAnalisis() {
   </div>`;
   const totVal = rows.reduce((a, r) => a + (r.valorActual || 0), 0);
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Detalle por especie</h2></div>`;
-  html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada'],
+  html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada', 'Años'],
     [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0)).map(r => [
       tb(r.ticker),
       money(r.valorActual),
       totVal > 0 ? round2(r.valorActual / totVal * 100) + '%' : '—',
       r.ganCapital != null ? `<span class="${cls(r.ganCapital)}">${money(r.ganCapital)}${r.ganCapitalPct != null ? ' · ' + rfPct(r.ganCapitalPct) : ''}</span>` : '—',
       r.rentaCobrada > 0 ? `<span class="pos">${money(r.rentaCobrada)}</span>` : '—',
-    ]), [1, 0, 0, 0, 0]);
+      r.aniosTenido != null ? round2(r.aniosTenido) : '—',
+    ]), [1, 0, 0, 0, 0, 0]);
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Evolución de precio</h2>
     <select id="rfa-evo-ticker" style="width:auto"></select></div>
     <div class="muted-sm" style="margin:-4px 0 6px">Se arma con el snapshot diario de data912 (USD por nominal).</div>
@@ -1454,6 +1464,11 @@ async function renderRfAnalisis() {
     el.querySelectorAll('.seg-btn[data-rfgain]').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     RF_GAIN_MODE = b.dataset.rfgain; drawRfGain();
+  });
+  el.querySelectorAll('.seg-btn[data-rfper]').forEach(b => b.onclick = () => {
+    el.querySelectorAll('.seg-btn[data-rfper]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    RF_GAIN_ANUAL = b.dataset.rfper === 'anual'; drawRfGain();
   });
   const evoSel = document.getElementById('rfa-evo-ticker');
   if (evoSel) {

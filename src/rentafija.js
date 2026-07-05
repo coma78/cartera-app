@@ -219,6 +219,14 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
 
     if (vn <= 0) continue; // posición cerrada: no aparece en tenencias
 
+    // Antigüedad de la posición (desde la primera compra) para anualizar.
+    const buyDates = buys.map((x) => x.fecha).filter(Boolean)
+      .map((f) => f instanceof Date ? f.toISOString().slice(0, 10) : String(f).slice(0, 10)).sort();
+    const primeraCompra = buyDates[0] || null;
+    const aniosTenido = primeraCompra
+      ? Math.max(0.08, (Date.parse(hoy) - Date.parse(primeraCompra)) / (365.25 * 24 * 3600 * 1000))
+      : null;
+
     const pr = prices[tk] || null;
     // Red de seguridad: un ON/bono cotiza en USD par (~0,2 a ~1,5 por nominal).
     // Un precio > 5 es casi seguro un error de escala (quedó en pesos / sin
@@ -252,6 +260,8 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       rentaCobrada: r2(paid.renta),
       amortCobrada: r2(paid.amort),
       proximoPago: nextByTicker[tk] || null,
+      primeraCompra,
+      aniosTenido: aniosTenido != null ? r2(aniosTenido) : null,
     });
   }
 
