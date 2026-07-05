@@ -1878,6 +1878,8 @@ function drawSugMonthly(s) {
     Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
   }
   bindEvents();
+  try { if (window.lucide) lucide.createIcons(); } catch (e) { /* noop */ }
+  window.addEventListener('load', () => { try { window.lucide && lucide.createIcons(); } catch (e) { /* noop */ } });
   await loadConfig();
   setEye();
   startIdle();

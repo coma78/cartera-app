@@ -13,31 +13,32 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
   <div class="layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="brand">📈 Car te re ar</div>
+      <div class="brand"><i data-lucide="candlestick-chart"></i> Car te re ar</div>
       <nav id="nav">
-        <a class="nav-item active" data-sec="rendimientos">📈 Rendimientos Totales</a>
+        <a class="nav-item active" data-sec="rendimientos"><i data-lucide="trending-up"></i> Rendimientos Totales</a>
         <div class="nav-group">Renta variable</div>
-        <a class="nav-item" data-sec="resumen">📊 Rendimiento RV</a>
-        <a class="nav-item" data-sec="cartera">💼 Cartera</a>
-        <a class="nav-item" data-sec="tenencias">➕ Movimientos</a>
-        <a class="nav-item" data-sec="ventas">💰 Ventas</a>
-        <a class="nav-item" data-sec="tickers">🏷️ Catálogo</a>
-        <a class="nav-item" data-sec="sugerencias">💡 Sugerencias</a>
+        <a class="nav-item" data-sec="resumen"><i data-lucide="bar-chart-3"></i> Rendimiento RV</a>
+        <a class="nav-item" data-sec="cartera"><i data-lucide="briefcase"></i> Cartera</a>
+        <a class="nav-item" data-sec="tenencias"><i data-lucide="arrow-left-right"></i> Movimientos</a>
+        <a class="nav-item" data-sec="ventas"><i data-lucide="circle-dollar-sign"></i> Ventas</a>
+        <a class="nav-item" data-sec="tickers"><i data-lucide="bookmark"></i> Catálogo</a>
+        <a class="nav-item" data-sec="sugerencias"><i data-lucide="lightbulb"></i> Sugerencias</a>
         <div class="nav-group">Renta fija</div>
-        <a class="nav-item" data-sec="rf-analisis">📊 Rendimientos RF</a>
-        <a class="nav-item" data-sec="rentafija">💼 Cartera</a>
-        <a class="nav-item" data-sec="rf-mov">➕ Movimientos</a>
-        <a class="nav-item" data-sec="rf-ventas">💰 Ventas</a>
-        <a class="nav-item" data-sec="rf-crono">🗓️ Cronograma</a>
-        <a class="nav-item" data-sec="rf-catalogo">🏷️ Catálogo</a>
-        <a class="nav-item" data-sec="rf-sug">💡 Sugerencias</a>
+        <a class="nav-item" data-sec="rf-analisis"><i data-lucide="pie-chart"></i> Rendimientos RF</a>
+        <a class="nav-item" data-sec="rentafija"><i data-lucide="landmark"></i> Cartera</a>
+        <a class="nav-item" data-sec="rf-mov"><i data-lucide="arrow-left-right"></i> Movimientos</a>
+        <a class="nav-item" data-sec="rf-ventas"><i data-lucide="circle-dollar-sign"></i> Ventas</a>
+        <a class="nav-item" data-sec="rf-crono"><i data-lucide="calendar-days"></i> Cronograma</a>
+        <a class="nav-item" data-sec="rf-catalogo"><i data-lucide="bookmark"></i> Catálogo</a>
+        <a class="nav-item" data-sec="rf-sug"><i data-lucide="lightbulb"></i> Sugerencias</a>
         <div class="nav-group">General</div>
-        <a class="nav-item" data-sec="reportes">✉️ Reportes diarios</a>
+        <a class="nav-item" data-sec="reportes"><i data-lucide="mail"></i> Reportes diarios</a>
       </nav>
       <div class="sidebar-foot">
         <span id="status-pill" class="pill">cargando…</span>

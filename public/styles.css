@@ -30,7 +30,9 @@ body {
   border-right: 1px solid var(--line);
   display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh;
 }
-.brand { font-size: 17px; font-weight: 700; letter-spacing: .2px; color: #fff; padding: 20px 18px 14px; }
+.brand { font-size: 17px; font-weight: 700; letter-spacing: .2px; color: #fff; padding: 20px 18px 14px; display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 20px; height: 20px; }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 2; }
 nav { display: flex; flex-direction: column; padding: 6px 10px; gap: 2px; flex: 1; overflow-y: auto; }
 .nav-item {
   display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 10px;
