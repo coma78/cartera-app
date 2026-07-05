@@ -1449,6 +1449,11 @@ async function renderRfAnalisis() {
   rfDoughnutBy('rfa-dist', rows.map(r => r.ticker), rows.map(r => round2((r.valorActual || 0) / (totVal || 1) * 100)));
   RF_AN_ROWS = rows;
   drawRfGain();
+  el.querySelectorAll('.seg-btn[data-rfgain]').forEach(b => b.onclick = () => {
+    el.querySelectorAll('.seg-btn[data-rfgain]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    RF_GAIN_MODE = b.dataset.rfgain; drawRfGain();
+  });
   const evoSel = document.getElementById('rfa-evo-ticker');
   if (evoSel) {
     evoSel.innerHTML = labels.map(t => `<option>${t}</option>`).join('');
