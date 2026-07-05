@@ -1168,6 +1168,7 @@ function bindEvents() {
   document.getElementById('ye-estimate').onclick = estimateYearendFaltantes;
   document.getElementById('ye-pdf').onclick = exportYearendPdf;
   document.getElementById('ye-fx').addEventListener('input', recomputeYearend);
+  document.getElementById('ye-broker').addEventListener('input', recomputeYearend);
   document.getElementById('rfs-search').addEventListener('input', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-clase').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-new').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
@@ -1853,7 +1854,8 @@ function renderYearendTable() {
   el.innerHTML = `<div class="muted-sm" id="ye-summary" style="margin-bottom:8px"></div>
     <table><thead><tr><th>Ticker</th><th class="num">Cantidad</th><th class="num">Precio 31/12 (USD)</th><th>Estado</th><th class="num">Valor USD</th><th class="num">Valor ARS</th></tr></thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td><b>Total</b></td><td></td><td></td><td></td><td class="num" id="ye-tot-u"></td><td class="num" id="ye-tot-a"></td></tr></tfoot></table>`;
+    <tfoot><tr><td><b>Total</b></td><td></td><td></td><td></td><td class="num" id="ye-tot-u"></td><td class="num" id="ye-tot-a"></td></tr></tfoot></table>
+    <div class="muted-sm" id="ye-diff" style="margin-top:10px"></div>`;
   el.querySelectorAll('.ye-px').forEach(inp => inp.addEventListener('input', () => {
     const i = Number(inp.dataset.i);
     YE_POS[i].precio = Number(inp.value) || 0; YE_POS[i].source = 'manual';
@@ -1871,6 +1873,15 @@ function recomputeYearend() {
   });
   const tu = document.getElementById('ye-tot-u'); if (tu) tu.innerHTML = '<b>' + money(tot) + '</b>';
   const ta = document.getElementById('ye-tot-a'); if (ta) ta.innerHTML = fx > 0 ? '<b>' + arsFmt(tot * fx) + '</b>' : '<span class="muted-sm">cargá el TC ↑</span>';
+  const broker = Number(document.getElementById('ye-broker').value) || 0;
+  const dEl = document.getElementById('ye-diff');
+  if (dEl) {
+    if (broker > 0) {
+      const diff = round2(tot - broker), pct = round2((tot - broker) / broker * 100);
+      const okClose = Math.abs(pct) <= 1;
+      dEl.innerHTML = `vs total broker ${money(broker)}: <b class="${okClose ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${money(diff)} (${pct >= 0 ? '+' : ''}${pct}%)</b>${okClose ? ' ✓ coincide' : ''}`;
+    } else dEl.innerHTML = '';
+  }
 }
 function exportYearendPdf() {
   if (!YE_POS.length) return toast('No hay posiciones para exportar');
