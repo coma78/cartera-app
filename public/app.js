@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', 'rf-sug': 'Renta fija · Sugerencias', yearend: 'Posición al 31/12', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', 'rf-sug': 'Renta fija · Sugerencias', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -146,7 +146,6 @@ function renderSection(sec) {
   else if (sec === 'tenencias') renderManage();
   else if (sec === 'ventas') renderVentas();
   else if (sec === 'reportes') renderReportsList();
-  else if (sec === 'yearend') renderYearend();
 }
 
 // ---------- Carga de datos ----------
@@ -1164,11 +1163,6 @@ function bindEvents() {
   document.getElementById('rfv-go').onclick = registerRfSale;
   document.getElementById('rf-cat-add').onclick = () => openRfCatalogForm();
   document.getElementById('rf-cat-seed').onclick = seedRfCatalog;
-  document.getElementById('ye-reload').onclick = renderYearend;
-  document.getElementById('ye-estimate').onclick = estimateYearendFaltantes;
-  document.getElementById('ye-pdf').onclick = exportYearendPdf;
-  document.getElementById('ye-fx').addEventListener('input', recomputeYearend);
-  document.getElementById('ye-broker').addEventListener('input', recomputeYearend);
   document.getElementById('rfs-search').addEventListener('input', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-clase').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-new').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
@@ -1785,132 +1779,6 @@ function drawSugMonthly(s) {
     data: { labels: s.monthly.map(m => mesLabel(m.ym)), datasets: [{ data: s.monthly.map(m => round2(m.total)), backgroundColor: s.monthly.map(m => lowSet.has(m.ym) ? '#f87171' : '#1D9E75'), borderRadius: 4 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => money(x.raw) } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } },
   });
-}
-
-// ---- Posición consolidada al 31/12 (ARCA) ----
-let YE_POS = [], YE_META = {};
-const yeFx = () => Number(document.getElementById('ye-fx').value) || 0;
-const arsFmt = (n) => '$ ' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
-async function renderYearend() {
-  const el = document.getElementById('ye-content'); if (!el) return;
-  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
-  const yEl = document.getElementById('ye-year');
-  const year = Number(yEl.value) || '';
-  let d; try { d = await api('/yearend' + (year ? ('?year=' + year) : '')); }
-  catch (e) { el.innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; return; }
-  YE_META = { year: d.year, cutoff: d.cutoff };
-  yEl.value = d.year;
-  document.getElementById('ye-sub').textContent = 'al ' + fmtDate(d.cutoff);
-  YE_POS = [...d.cedears, ...d.rentafija].map(p => ({
-    ...p, precio: p.precioAuto != null ? p.precioAuto : p.precioProvisorio, source: p.source || 'falta',
-  }));
-  renderYearendTable();
-}
-const yeStatus = (s) => s === 'auto'
-  ? '<span class="pos" title="Precio de cierre al 31/12 (histórico)">✓ 31/12</span>'
-  : s === 'manual' ? '<span class="muted-sm" title="Cargado a mano">✎ manual</span>'
-    : s === 'estimado' ? '<span style="color:var(--amber,#e0a800)" title="Precio ACTUAL de mercado (aprox., no el del 31/12)">≈ actual</span>'
-      : '<span class="neg" title="Sin precio al 31/12: provisorio al costo, completalo">⚠ falta</span>';
-async function estimateYearendFaltantes() {
-  const b = document.getElementById('ye-estimate'); const o = b.textContent; b.disabled = true; b.textContent = 'Estimando…';
-  try {
-    const est = await api('/yearend/estimate');
-    let n = 0;
-    for (const p of YE_POS) {
-      if (p.source !== 'falta') continue;
-      let px = null;
-      if (p.tipo === 'CEDEAR') { const u = est.cedears[p.ticker]; if (u > 0) px = u / (Number(p.ratio) || 1); }
-      else if (est.rf[p.ticker] > 0) px = est.rf[p.ticker];
-      if (px > 0) { p.precio = Math.round(px * 10000) / 10000; p.source = 'estimado'; n++; }
-    }
-    toast(n ? `Estimadas ${n} con precio actual` : 'No hay precios actuales para los faltantes');
-    renderYearendTable();
-  } catch (e) { toast(e.message); }
-  b.disabled = false; b.textContent = o;
-}
-function updateYeSummary() {
-  const el = document.getElementById('ye-summary'); if (!el) return;
-  const auto = YE_POS.filter(p => p.source === 'auto').length;
-  const manual = YE_POS.filter(p => p.source === 'manual').length;
-  const est = YE_POS.filter(p => p.source === 'estimado').length;
-  const falta = YE_POS.filter(p => p.source === 'falta').length;
-  el.innerHTML = `${auto} con precio 31/12 (auto)${manual ? ` · ${manual} a mano` : ''}${est ? ` · ${est} estimadas (actual)` : ''}${falta ? ` · <span class="neg">${falta} por completar</span>` : ' · <span class="pos">todo con precio ✓</span>'}`;
-}
-function renderYearendTable() {
-  const el = document.getElementById('ye-content'); if (!el) return;
-  if (!YE_POS.length) { el.innerHTML = '<div class="empty">No tenías posiciones al ' + fmtDate(YE_META.cutoff) + '.</div>'; return; }
-  const fx = yeFx();
-  const body = YE_POS.map((p, i) => {
-    const v = (Number(p.cantidad) || 0) * (Number(p.precio) || 0);
-    return `<tr>
-      <td>${tb(p.ticker)} <span class="muted-sm">${esc(p.tipo)}${p.emisor ? ' · ' + esc(p.emisor) : ''}</span></td>
-      <td class="num">${nf(p.cantidad)}</td>
-      <td class="num"><input type="number" step="any" data-i="${i}" class="ye-px" value="${p.precio}" style="width:96px"></td>
-      <td id="ye-st-${i}">${yeStatus(p.source)}</td>
-      <td class="num" id="ye-vu-${i}">${money(v)}</td>
-      <td class="num" id="ye-va-${i}">${fx > 0 ? arsFmt(v * fx) : '—'}</td>
-    </tr>`;
-  }).join('');
-  el.innerHTML = `<div class="muted-sm" id="ye-summary" style="margin-bottom:8px"></div>
-    <table><thead><tr><th>Ticker</th><th class="num">Cantidad</th><th class="num">Precio 31/12 (USD)</th><th>Estado</th><th class="num">Valor USD</th><th class="num">Valor ARS</th></tr></thead>
-    <tbody>${body}</tbody>
-    <tfoot><tr><td><b>Total</b></td><td></td><td></td><td></td><td class="num" id="ye-tot-u"></td><td class="num" id="ye-tot-a"></td></tr></tfoot></table>
-    <div class="muted-sm" id="ye-diff" style="margin-top:10px"></div>`;
-  el.querySelectorAll('.ye-px').forEach(inp => inp.addEventListener('input', () => {
-    const i = Number(inp.dataset.i);
-    YE_POS[i].precio = Number(inp.value) || 0; YE_POS[i].source = 'manual';
-    const st = document.getElementById('ye-st-' + i); if (st) st.innerHTML = yeStatus('manual');
-    recomputeYearend(); updateYeSummary();
-  }));
-  recomputeYearend(); updateYeSummary();
-}
-function recomputeYearend() {
-  const fx = yeFx(); let tot = 0;
-  YE_POS.forEach((p, i) => {
-    const v = (Number(p.cantidad) || 0) * (Number(p.precio) || 0); tot += v;
-    const vu = document.getElementById('ye-vu-' + i); if (vu) vu.textContent = money(v);
-    const va = document.getElementById('ye-va-' + i); if (va) va.textContent = fx > 0 ? arsFmt(v * fx) : '—';
-  });
-  const tu = document.getElementById('ye-tot-u'); if (tu) tu.innerHTML = '<b>' + money(tot) + '</b>';
-  const ta = document.getElementById('ye-tot-a'); if (ta) ta.innerHTML = fx > 0 ? '<b>' + arsFmt(tot * fx) + '</b>' : '<span class="muted-sm">cargá el TC ↑</span>';
-  const broker = Number(document.getElementById('ye-broker').value) || 0;
-  const dEl = document.getElementById('ye-diff');
-  if (dEl) {
-    if (broker > 0) {
-      const diff = round2(tot - broker), pct = round2((tot - broker) / broker * 100);
-      const okClose = Math.abs(pct) <= 1;
-      dEl.innerHTML = `vs total broker ${money(broker)}: <b class="${okClose ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${money(diff)} (${pct >= 0 ? '+' : ''}${pct}%)</b>${okClose ? ' ✓ coincide' : ''}`;
-    } else dEl.innerHTML = '';
-  }
-}
-function exportYearendPdf() {
-  if (!YE_POS.length) return toast('No hay posiciones para exportar');
-  if (!(window.jspdf && window.jspdf.jsPDF)) return toast('No se pudo cargar el generador de PDF, reintentá');
-  const fx = yeFx(); let tot = 0;
-  const nAr = (n, d = 2) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
-  const body = YE_POS.map(p => {
-    const v = (Number(p.cantidad) || 0) * (Number(p.precio) || 0); tot += v;
-    return [p.ticker, (p.tipo || '') + (p.emisor ? ' - ' + p.emisor : ''), Number(p.cantidad).toLocaleString('es-AR'),
-      nAr(p.precio, 4), 'USD ' + nAr(v), fx > 0 ? '$ ' + nAr(v * fx) : '—'];
-  });
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.setFontSize(15); doc.text('Posición consolidada al ' + fmtDate(YE_META.cutoff), 14, 18);
-  doc.setFontSize(9); doc.setTextColor(90);
-  doc.text('Titular: ' + (CONFIG.user || '') + '   ·   Tipo de cambio 31/12: ' + (fx > 0 ? '$ ' + fx.toLocaleString('es-AR') + ' por USD' : '(sin cargar)'), 14, 25);
-  doc.autoTable({
-    startY: 30,
-    head: [['Ticker', 'Tipo', 'Cantidad', 'Precio 31/12 (USD)', 'Valor USD', 'Valor ARS']],
-    body,
-    foot: [['Total', '', '', '', 'USD ' + nAr(tot), fx > 0 ? '$ ' + nAr(tot * fx) : '—']],
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [30, 41, 59] },
-    footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold' },
-    columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
-  });
-  doc.setFontSize(7); doc.setTextColor(130);
-  doc.text('Informativo, no asesoramiento fiscal. Verificá valuaciones y tipo de cambio con las fuentes oficiales de ARCA. Generado el ' + new Date().toLocaleDateString('es-AR') + '.', 14, doc.lastAutoTable.finalY + 8);
-  doc.save('posicion-31-12-' + (YE_META.year || '') + '.pdf');
 }
 
 // ---------- Init ----------

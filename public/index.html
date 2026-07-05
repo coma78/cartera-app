@@ -13,8 +13,6 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
   <div class="layout">
@@ -39,7 +37,6 @@
         <a class="nav-item" data-sec="rf-catalogo">🏷️ Catálogo</a>
         <a class="nav-item" data-sec="rf-sug">💡 Sugerencias</a>
         <div class="nav-group">General</div>
-        <a class="nav-item" data-sec="yearend">📄 Posición al 31/12</a>
         <a class="nav-item" data-sec="reportes">✉️ Reportes diarios</a>
       </nav>
       <div class="sidebar-foot">
@@ -353,26 +350,6 @@
           <p class="disclaimer" style="padding:0">
             Escenario informativo calculado con reglas, no asesoramiento financiero. No es una orden de compra; verificá precios antes de operar.
           </p>
-        </div>
-      </section>
-
-      <!-- POSICIÓN AL 31/12 (ARCA) -->
-      <section id="sec-yearend" class="section hidden">
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Posición consolidada al 31/12 <span class="muted-sm" id="ye-sub"></span></h2>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <label class="muted-sm">Año <input type="number" id="ye-year" style="width:84px"></label>
-              <label class="muted-sm">TC 31/12 (USD→ARS) <input type="number" id="ye-fx" step="any" style="width:110px" placeholder="ej. 1032,5"></label>
-              <label class="muted-sm">Total broker (ref., USD) <input type="number" id="ye-broker" step="any" style="width:120px" placeholder="ej. 133327,53"></label>
-              <button class="btn" id="ye-reload">Recalcular</button>
-              <button class="btn" id="ye-estimate" title="Completar los que faltan con el precio actual de mercado (aprox., no el del 31/12)">≈ Estimar faltantes</button>
-              <button class="btn primary" id="ye-pdf">📄 Exportar PDF</button>
-            </div>
-          </div>
-          <p class="muted-sm" style="margin:0 0 10px">Reconstruye lo que tenías al 31/12. <b>Editá los precios</b> al valor de mercado de esa fecha (arrancan en un valor provisorio al costo). Para ARCA se declara en pesos con el tipo de cambio de cierre.</p>
-          <div id="ye-content"></div>
-          <p class="disclaimer" style="padding:0">Informativo, no asesoramiento fiscal. Verificá valuaciones y tipo de cambio con las fuentes oficiales de ARCA.</p>
         </div>
       </section>
 
