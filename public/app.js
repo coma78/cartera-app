@@ -185,6 +185,8 @@ async function loadSettings() {
   try { SETTINGS = await api('/settings'); } catch (e) { SETTINGS = { dailyEmail: true }; }
   const chk = document.getElementById('chk-daily-email');
   if (chk) chk.checked = !!SETTINGS.dailyEmail;
+  const chkR = document.getElementById('chk-renta-reminder');
+  if (chkR) chkR.checked = SETTINGS.rentaReminder !== false;
 }
 async function loadAll() {
   await refreshCatalog();
@@ -1135,6 +1137,20 @@ function bindEvents() {
       SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ dailyEmail: this.checked }) });
       toast(SETTINGS.dailyEmail ? 'Mail diario activado' : 'Mail diario desactivado (el snapshot se sigue guardando)');
     } catch (e) { toast(e.message); this.checked = !this.checked; }
+  });
+  document.getElementById('chk-renta-reminder').addEventListener('change', async function () {
+    try {
+      SETTINGS = await api('/settings', { method: 'POST', body: JSON.stringify({ rentaReminder: this.checked }) });
+      toast(SETTINGS.rentaReminder ? 'Aviso de renta activado' : 'Aviso de renta desactivado');
+    } catch (e) { toast(e.message); this.checked = !this.checked; }
+  });
+  document.getElementById('btn-renta-test').addEventListener('click', async function () {
+    this.disabled = true; const o = this.textContent; this.textContent = 'Enviando…';
+    try {
+      const r = await api('/rf/renta-reminder/test', { method: 'POST', body: '{}' });
+      toast(r.sent ? `Aviso enviado (${(r.tickers || []).join(', ')})` : (r.reason || 'No se envió') + (r.reason === 'Sin pagos ese día' ? '' : ''));
+    } catch (e) { toast(e.message); }
+    this.disabled = false; this.textContent = o;
   });
   ['f-view', 'f-type', 'f-ticker', 'f-year', 'f-from', 'f-to', 'f-pl', 'f-pagesize'].forEach(id => {
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; renderCartera(); });

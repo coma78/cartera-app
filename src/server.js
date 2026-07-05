@@ -33,7 +33,7 @@ function latestImpliedMep(trades) {
 }
 import { buildReport, generateReport } from './report.js';
 import { providerInfo } from './marketData.js';
-import { emailConfigured } from './email.js';
+import { emailConfigured, sendEmail } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn, aiDiscover, lastAiError, aiModel, listModels } from './ai.js';
@@ -350,12 +350,14 @@ async function readSettings() {
   try { suggestTickers = JSON.parse(await getSetting('suggest_tickers', 'null')); } catch { suggestTickers = null; }
   return {
     dailyEmail: (await getSetting('daily_email', 'true')) !== 'false',
+    rentaReminder: (await getSetting('renta_reminder', 'true')) !== 'false',
     suggestTickers,
   };
 }
 app.get('/api/settings', wrap(async (_req, res) => res.json(await readSettings())));
 app.post('/api/settings', wrap(async (req, res) => {
   if (typeof req.body?.dailyEmail === 'boolean') await setSetting('daily_email', req.body.dailyEmail ? 'true' : 'false');
+  if (typeof req.body?.rentaReminder === 'boolean') await setSetting('renta_reminder', req.body.rentaReminder ? 'true' : 'false');
   if (Array.isArray(req.body?.suggestTickers)) await setSetting('suggest_tickers', JSON.stringify(req.body.suggestTickers));
   res.json(await readSettings());
 }));
@@ -528,6 +530,38 @@ app.get('/api/rf/price-history', wrap(async (req, res) => res.json(await listRfP
 
 app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
 
+// Recordatorio por mail el día que se paga renta (sin montos, sólo la especie),
+// para acordarte de reinvertir.
+async function sendRentaReminder(dateStr) {
+  const hoy = dateStr || new Date().toISOString().slice(0, 10);
+  const payments = await listRfPayments();
+  const todays = payments.filter((p) => String(p.fecha) === hoy);
+  if (!todays.length) return { sent: false, reason: 'Sin pagos ese día', tickers: [] };
+  const [cat, trades] = await Promise.all([listRfCatalog(), listRfTrades()]);
+  const emisorOf = {};
+  for (const c of cat) if (c.emisor) emisorOf[c.ticker] = c.emisor;
+  for (const t of trades) if (!emisorOf[t.ticker] && t.emisor) emisorOf[t.ticker] = t.emisor;
+  const tickers = [...new Set(todays.map((p) => String(p.ticker).toUpperCase().trim()))];
+  const fechaLinda = new Date(hoy + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const rows = tickers.map((tk) => `<li style="margin:4px 0"><b>${tk}</b>${emisorOf[tk] ? ` <span style="color:#777">— ${emisorOf[tk]}</span>` : ''}</li>`).join('');
+  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1c1c1c">
+    <div style="max-width:520px;margin:0 auto;padding:24px">
+      <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)">
+        <h1 style="font-size:18px;margin:0 0 6px">💧 Hoy cobrás renta</h1>
+        <p style="color:#555;margin:0 0 14px;font-size:14px">${fechaLinda}. Acordate de <b>reinvertirla</b>.</p>
+        <ul style="margin:0;padding-left:18px;font-size:15px">${rows}</ul>
+        <p style="color:#999;font-size:12px;margin-top:18px;border-top:1px solid #e3e6ea;padding-top:12px">Recordatorio automático de Car te re ar. No incluye montos a propósito.</p>
+      </div>
+    </div></body></html>`;
+  const subject = `Renta hoy — acordate de reinvertir (${tickers.join(', ')})`;
+  const r = await sendEmail({ subject, html });
+  return { ...r, tickers };
+}
+// Probar el aviso manualmente (para el día de hoy o una fecha dada).
+app.post('/api/rf/renta-reminder/test', wrap(async (req, res) => {
+  res.json(await sendRentaReminder(req.body?.date || null));
+}));
+
 // ---- Catálogo de renta fija (ONs/bonos candidatos) ----
 app.get('/api/rf/catalog', wrap(async (_req, res) => {
   const [cat, prices] = await Promise.all([listRfCatalog(), listRfPrices()]);
@@ -652,6 +686,15 @@ async function start() {
         console.log(`[cron] renta fija — precios ${rf.updated}, snapshot ${rf.snapped}${rf.error ? ' — ' + rf.error : ''}`);
       } catch (e) {
         console.error('[cron] rf precios error:', e.message);
+      }
+      // Recordatorio de renta a reinvertir (el día que se paga).
+      try {
+        if ((await getSetting('renta_reminder', 'true')) !== 'false') {
+          const rr = await sendRentaReminder();
+          if (rr.sent) console.log(`[cron] recordatorio renta enviado: ${rr.tickers.join(', ')}`);
+        }
+      } catch (e) {
+        console.error('[cron] renta reminder error:', e.message);
       }
     }, { timezone: tz });
     console.log(`[cron] programado ${expr} (${tz})`);
