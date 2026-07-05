@@ -1387,18 +1387,30 @@ let RF_GAIN_MODE = 'capital', RF_AN_ROWS = [], RF_GAIN_ANUAL = false;
 function drawRfGain() {
   const rows = RF_AN_ROWS; if (!rows.length) return;
   const cv = document.getElementById('rfa-gain'); if (!cv || typeof Chart === 'undefined') return;
-  const labels = rows.map(r => r.ticker);
   const anios = rows.map(r => Number(r.aniosTenido) > 0 ? Number(r.aniosTenido) : 1);
+  // "Corta" = tenida hace menos de 1 año: anualizar la extrapolaría, así que en
+  // modo Anual la marcamos (gris + *) y mostramos su acumulado.
+  const short = rows.map(r => (Number(r.aniosTenido) || 99) < 1);
+  const marked = (i) => RF_GAIN_ANUAL && short[i];
+  const labels = rows.map((r, i) => marked(i) ? r.ticker + ' *' : r.ticker);
   let capPct = rows.map(r => round2(r.ganCapitalPct || 0));
   let rentaPct = rows.map(r => { const inv = (Number(r.precioCompra) || 0) * (Number(r.vn) || 0); return inv > 0 ? round2((Number(r.rentaCobrada) || 0) / inv * 100) : 0; });
-  if (RF_GAIN_ANUAL) { capPct = capPct.map((v, i) => round2(v / anios[i])); rentaPct = rentaPct.map((v, i) => round2(v / anios[i])); }
+  if (RF_GAIN_ANUAL) {
+    capPct = capPct.map((v, i) => short[i] ? v : round2(v / anios[i]));
+    rentaPct = rentaPct.map((v, i) => short[i] ? v : round2(v / anios[i]));
+  }
   const suf = RF_GAIN_ANUAL ? '% anual' : '%';
+  const note = document.getElementById('rfa-gain-note');
+  if (note) note.textContent = (RF_GAIN_ANUAL && short.some(Boolean)) ? '* tenidas hace menos de 1 año: se muestra el acumulado (anualizarlas lo distorsiona).' : '';
   if (CHARTS['rfa-gain']) CHARTS['rfa-gain'].destroy();
   if (cv.parentElement) cv.parentElement.style.height = Math.max(240, rows.length * 26) + 'px';
+  const GREY = '#5f6c80', GREY2 = '#8a97a8';
+  const capBar = (v, i) => marked(i) ? GREY : (RF_GAIN_MODE === 'ambas' ? '#3b82f6' : (v >= 0 ? '#34d399' : '#f87171'));
+  const rentaBar = (i) => marked(i) ? GREY2 : '#34d399';
   let datasets, stacked = false;
-  if (RF_GAIN_MODE === 'renta') datasets = [{ data: rentaPct, backgroundColor: '#34d399', borderRadius: 4 }];
-  else if (RF_GAIN_MODE === 'ambas') { stacked = true; datasets = [{ label: 'Capital', data: capPct, backgroundColor: '#3b82f6', borderRadius: 4 }, { label: 'Renta', data: rentaPct, backgroundColor: '#34d399', borderRadius: 4 }]; }
-  else datasets = [{ data: capPct, backgroundColor: capPct.map(v => v >= 0 ? '#34d399' : '#f87171'), borderRadius: 4 }];
+  if (RF_GAIN_MODE === 'renta') datasets = [{ data: rentaPct, backgroundColor: rentaPct.map((v, i) => rentaBar(i)), borderRadius: 4 }];
+  else if (RF_GAIN_MODE === 'ambas') { stacked = true; datasets = [{ label: 'Capital', data: capPct, backgroundColor: capPct.map((v, i) => capBar(v, i)), borderRadius: 4 }, { label: 'Renta', data: rentaPct, backgroundColor: rentaPct.map((v, i) => rentaBar(i)), borderRadius: 4 }]; }
+  else datasets = [{ data: capPct, backgroundColor: capPct.map((v, i) => capBar(v, i)), borderRadius: 4 }];
   CHARTS['rfa-gain'] = new Chart(cv, {
     type: 'bar', data: { labels, datasets },
     options: {
@@ -1439,6 +1451,7 @@ async function renderRfAnalisis() {
         </div>
       </div>
       <div class="chart-wrap" style="height:240px"><canvas id="rfa-gain"></canvas></div>
+      <div class="muted-sm" id="rfa-gain-note" style="margin-top:4px"></div>
     </div>
   </div>`;
   const totVal = rows.reduce((a, r) => a + (r.valorActual || 0), 0);
