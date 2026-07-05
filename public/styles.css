@@ -109,7 +109,12 @@ tr:last-child td { border-bottom: none; }
 .pill.warn { background: rgba(248,113,113,.12); color: var(--red); border-color: rgba(248,113,113,.25); }
 
 /* ---------- Inputs ---------- */
-input, select, textarea { color: var(--ink); }
+input, select, textarea { color: var(--ink); background: var(--panel-2); color-scheme: dark; }
+/* inputs sueltos (fuera de .filters/.modal-box) igual con borde y padding legibles */
+input[type=number], input[type=text], input[type=date], input:not([type]), select {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px;
+}
+input[type=checkbox], input[type=radio] { border: none; padding: 0; }
 input[readonly] { background: var(--bg-2) !important; color: var(--muted); }
 input::placeholder, textarea::placeholder { color: #5f6c80; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand) !important; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
