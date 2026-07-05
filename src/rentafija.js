@@ -300,6 +300,43 @@ export function monthlyRenta(payments = [], { today, months = 12 } = {}) {
     .map((b) => ({ ym: b.ym, renta: r2(b.renta), amort: r2(b.amort), total: r2(b.total) }));
 }
 
+// Sugerencia: reforzar los meses con renta más baja. Mira la renta por mes y,
+// para los meses "valle", propone las especies (tuyas o del catálogo) que pagan
+// en ese mes, con su rating y mínimo de nominales.
+export function suggestReinforce({ payments = [], rows = [], catalog = [], today, months = 12 } = {}) {
+  const hoy = today || new Date().toISOString().slice(0, 10);
+  const monthly = monthlyRenta(payments, { today: hoy, months });
+  const heldSet = new Set(rows.map((r) => r.ticker));
+  const catByTk = {};
+  for (const c of catalog) catByTk[String(c.ticker).toUpperCase().trim()] = c;
+  const curMonth = hoy.slice(0, 7);
+  const payMonths = {};
+  for (const p of payments) {
+    const ym = String(p.fecha).slice(0, 7);
+    if (ym < curMonth) continue;
+    (payMonths[String(p.ticker).toUpperCase().trim()] ??= new Set()).add(ym);
+  }
+  const avg = monthly.length ? monthly.reduce((a, m) => a + m.total, 0) / monthly.length : 0;
+  const umbral = avg * 0.75;
+  const low = monthly.filter((m) => m.total < umbral).sort((a, b) => a.total - b.total);
+  const suggestions = low.map((m) => {
+    const candidatos = [];
+    for (const tk of Object.keys(payMonths)) {
+      if (!payMonths[tk].has(m.ym)) continue;
+      const c = catByTk[tk];
+      candidatos.push({
+        ticker: tk, held: heldSet.has(tk), rating: c?.rating || '',
+        minNominales: c ? Number(c.min_nominales) || 0 : null,
+        emisor: c?.emisor || (rows.find((r) => r.ticker === tk)?.emisor) || '',
+        clase: c?.clase || (rows.find((r) => r.ticker === tk)?.clase) || '',
+      });
+    }
+    candidatos.sort((a, b) => (a.held === b.held ? 0 : a.held ? -1 : 1) || String(a.rating).localeCompare(String(b.rating)));
+    return { ym: m.ym, total: m.total, candidatos };
+  });
+  return { monthly, avg: Math.round(avg * 100) / 100, umbral: Math.round(umbral * 100) / 100, suggestions };
+}
+
 // Próximos cupones (lista), desde hoy.
 export function upcomingPayments(payments = [], { today, limit = 12 } = {}) {
   const hoy = today || new Date().toISOString().slice(0, 10);

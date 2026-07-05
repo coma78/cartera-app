@@ -35,6 +35,7 @@
         <a class="nav-item" data-sec="rf-ventas">💰 Ventas</a>
         <a class="nav-item" data-sec="rf-crono">🗓️ Cronograma</a>
         <a class="nav-item" data-sec="rf-catalogo">🏷️ Catálogo</a>
+        <a class="nav-item" data-sec="rf-sug">💡 Sugerencias</a>
         <div class="nav-group">General</div>
         <a class="nav-item" data-sec="reportes">✉️ Reportes diarios</a>
       </nav>
@@ -257,10 +258,27 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Catálogo <span class="muted-sm">ONs y bonos candidatos</span></h2>
-            <button class="btn primary" id="rf-cat-add">＋ Agregar</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn" id="rf-cat-seed" title="Agregar al catálogo las ONs/bonos que ya tenés">Agregar mis tenencias</button>
+              <button class="btn primary" id="rf-cat-add">＋ Agregar</button>
+            </div>
           </div>
           <p class="muted-sm" style="margin:0 0 10px">Cargá las especies que te interesan (con su rating y mínimo de nominales). Si sumás su cronograma en el DetallePagos, entran en las sugerencias.</p>
           <div id="rf-cat-content"></div>
+        </div>
+      </section>
+
+      <!-- RENTA FIJA · SUGERENCIAS -->
+      <section id="sec-rf-sug" class="section hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Sugerencias RF <span class="muted-sm">emparejar la renta del año</span></h2></div>
+          <div class="filters">
+            <label>Buscar<input id="rfs-search" placeholder="ticker o emisor"></label>
+            <label>Clase<select id="rfs-clase"><option value="">Todas</option><option>ON</option><option>Bono</option></select></label>
+            <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="rfs-new" style="width:auto"> Solo nuevas (catálogo)</label>
+          </div>
+          <div id="rf-sug-content"></div>
+          <p class="disclaimer" style="padding:0">Análisis informativo para emparejar tu flujo de renta, no asesoramiento. El rating es el que cargaste; verificá antes de operar.</p>
         </div>
       </section>
 

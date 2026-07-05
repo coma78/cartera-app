@@ -19,7 +19,7 @@ import {
   listRfIncome, saveRfIncome,
   listRfCatalog, addRfCatalog, updateRfCatalog, deleteRfCatalog,
 } from './db.js';
-import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep } from './rentafija.js';
+import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep, suggestReinforce } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
 
 // MEP implícito más reciente a partir de los boletos (respaldo si dolarapi falla).
@@ -533,6 +533,26 @@ app.post('/api/rf/catalog', wrap(async (req, res) => {
 }));
 app.put('/api/rf/catalog/:id', wrap(async (req, res) => res.json(await updateRfCatalog(Number(req.params.id), req.body))));
 app.delete('/api/rf/catalog/:id', wrap(async (req, res) => { await deleteRfCatalog(Number(req.params.id)); res.json({ ok: true }); }));
+
+// Agregar mis tenencias actuales al catálogo (sin pisar las que ya están).
+app.post('/api/rf/catalog/seed-held', wrap(async (_req, res) => {
+  const rf = await computeRf();
+  const existing = new Set((await listRfCatalog()).map((c) => c.ticker));
+  let added = 0;
+  for (const r of rf.rows) {
+    if (existing.has(r.ticker)) continue;
+    await addRfCatalog({ ticker: r.ticker, emisor: r.emisor, clase: r.clase, moneda: 'USD' });
+    added++;
+  }
+  res.json({ added });
+}));
+
+// Sugerencias RF: reforzar meses de renta baja.
+app.get('/api/rf/suggest', wrap(async (_req, res) => {
+  const [rf, catalog] = await Promise.all([computeRf(), listRfCatalog()]);
+  const s = suggestReinforce({ payments: rf.payments, rows: rf.rows, catalog, today: rf.today });
+  res.json(s);
+}));
 
 // Importar movimientos → renta cobrada histórica por ON (patas USD de "Renta").
 // Body: { rows:[{ descripcion, ticker, moneda, importe, fecha }] }

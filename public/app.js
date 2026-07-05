@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', 'rf-sug': 'Renta fija · Sugerencias', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -139,6 +139,7 @@ function renderSection(sec) {
   else if (sec === 'rf-ventas') renderRfVentas();
   else if (sec === 'rf-crono') renderRfCronograma();
   else if (sec === 'rf-catalogo') renderRfCatalogo();
+  else if (sec === 'rf-sug') renderRfSug();
   else if (sec === 'sugerencias') renderSugerencias();
   else if (sec === 'descubrir') renderDescubrir();
   else if (sec === 'tickers') renderCatalog();
@@ -1161,6 +1162,10 @@ function bindEvents() {
   document.getElementById('rf-add').onclick = () => openRfTradeForm();
   document.getElementById('rfv-go').onclick = registerRfSale;
   document.getElementById('rf-cat-add').onclick = () => openRfCatalogForm();
+  document.getElementById('rf-cat-seed').onclick = seedRfCatalog;
+  document.getElementById('rfs-search').addEventListener('input', () => { if (RF_SUG) renderRfSugResult(); });
+  document.getElementById('rfs-clase').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
+  document.getElementById('rfs-new').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
     try {
@@ -1719,6 +1724,61 @@ async function delRfCatalog(id) {
   if (!confirm('¿Borrar del catálogo?')) return;
   try { await api('/rf/catalog/' + id, { method: 'DELETE' }); toast('Borrado'); renderRfCatalogo(); }
   catch (e) { toast(e.message); }
+}
+async function seedRfCatalog() {
+  try { const r = await api('/rf/catalog/seed-held', { method: 'POST', body: '{}' }); toast(`Agregadas ${r.added} al catálogo`); renderRfCatalogo(); }
+  catch (e) { toast(e.message); }
+}
+
+// ---- Sugerencias RF (reforzar meses flojos) ----
+let RF_SUG = null;
+const mesLabel = (ym) => { const [y, mm] = ym.split('-'); return ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][+mm - 1] + ' ' + y.slice(2); };
+async function renderRfSug() {
+  const el = document.getElementById('rf-sug-content'); if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
+  try { RF_SUG = await api('/rf/suggest'); } catch { RF_SUG = null; }
+  renderRfSugResult();
+}
+function renderRfSugResult() {
+  const el = document.getElementById('rf-sug-content'); if (!el) return;
+  const s = RF_SUG;
+  if (!s || !s.monthly || !s.monthly.length) { el.innerHTML = '<div class="empty">Cargá el cronograma (DetallePagos) para calcular sugerencias.</div>'; return; }
+  const q = (document.getElementById('rfs-search').value || '').toLowerCase().trim();
+  const clase = document.getElementById('rfs-clase').value;
+  const onlyNew = document.getElementById('rfs-new').checked;
+  let html = `<div class="muted-sm" style="margin-bottom:6px">Renta promedio mensual: <b>${money(s.avg)}</b> · umbral de "valle": ${money(s.umbral)} (en rojo)</div>
+    <div class="chart-wrap" style="height:200px"><canvas id="rf-sug-monthly"></canvas></div>`;
+  if (!s.suggestions.length) {
+    html += '<div class="empty" style="margin-top:12px">No hay meses por debajo del umbral: tu renta está bastante pareja 👌</div>';
+    el.innerHTML = html; drawSugMonthly(s); return;
+  }
+  html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">';
+  for (const m of s.suggestions) {
+    let cands = m.candidatos;
+    if (clase) cands = cands.filter(c => c.clase === clase);
+    if (onlyNew) cands = cands.filter(c => !c.held);
+    if (q) cands = cands.filter(c => c.ticker.toLowerCase().includes(q) || String(c.emisor).toLowerCase().includes(q));
+    html += `<div class="panel" style="box-shadow:none;border:1px solid var(--line);padding:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><b>${mesLabel(m.ym)}</b><span class="muted-sm">cobrás ${money(m.total)}</span></div>`;
+    html += cands.length
+      ? rfTable(['Ticker', 'Rating', 'Mín. nom.', 'Estado'],
+        cands.map(c => [`${tb(c.ticker)} <span class="muted-sm">${esc(c.emisor || '')}</span>`, esc(c.rating || '—'), c.minNominales ? nf(c.minNominales) : '—', c.held ? '<span class="pos">la tenés</span>' : '<span class="muted-sm">nueva (catálogo)</span>']), [1, 0, 0, 0])
+      : `<div class="muted-sm">Ninguna especie paga en ${mesLabel(m.ym)} (con los filtros / lo cargado). Buena candidata para sumar una ON nueva de ese mes.</div>`;
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+  drawSugMonthly(s);
+}
+function drawSugMonthly(s) {
+  const cv = document.getElementById('rf-sug-monthly'); if (!cv || typeof Chart === 'undefined') return;
+  const lowSet = new Set(s.suggestions.map(x => x.ym));
+  if (CHARTS['rf-sug-monthly']) CHARTS['rf-sug-monthly'].destroy();
+  CHARTS['rf-sug-monthly'] = new Chart(cv, {
+    type: 'bar',
+    data: { labels: s.monthly.map(m => mesLabel(m.ym)), datasets: [{ data: s.monthly.map(m => round2(m.total)), backgroundColor: s.monthly.map(m => lowSet.has(m.ym) ? '#f87171' : '#1D9E75'), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => money(x.raw) } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } },
+  });
 }
 
 // ---------- Init ----------
