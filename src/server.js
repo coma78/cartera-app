@@ -32,7 +32,7 @@ function latestImpliedMep(trades) {
   return keys.length ? idx[keys[keys.length - 1]] : null;
 }
 import { buildReport, generateReport } from './report.js';
-import { providerInfo } from './marketData.js';
+import { providerInfo, getQuotesBatch } from './marketData.js';
 import { emailConfigured } from './email.js';
 import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
@@ -685,6 +685,21 @@ app.get('/api/yearend', wrap(async (req, res) => {
   const conPrecio = cedears.filter((c) => c.source === 'auto').length;
   const faltan = cedears.length + rentafija.length - conPrecio;
   res.json({ year, cutoff, cedears, rentafija, conPrecio, faltan });
+}));
+
+// Estimación de faltantes con precio ACTUAL de mercado (no es el del 31/12):
+// CEDEARs = cotización actual de la acción; ONs/bonos = precio actual data912.
+app.get('/api/yearend/estimate', wrap(async (_req, res) => {
+  const [holdings, rfPrices] = await Promise.all([listHoldings(), listRfPrices()]);
+  const cedT = [...new Set(holdings.map((h) => h.ticker))];
+  const cedears = {};
+  try {
+    const quotes = await getQuotesBatch(cedT, 60000);
+    for (const [tk, r] of quotes) if (r && r.ok && r.quote && r.quote.price > 0) cedears[tk] = r.quote.price;
+  } catch { /* noop */ }
+  const rf = {};
+  for (const tk of Object.keys(rfPrices)) if (rfPrices[tk].price > 0) rf[tk] = rfPrices[tk].price;
+  res.json({ cedears, rf });
 }));
 
 // ---- Static UI (la portada pide login si el SSO está activo) ----

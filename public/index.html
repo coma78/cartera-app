@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
   <div class="layout">
@@ -363,6 +365,7 @@
               <label class="muted-sm">Año <input type="number" id="ye-year" style="width:84px"></label>
               <label class="muted-sm">TC 31/12 (USD→ARS) <input type="number" id="ye-fx" step="any" style="width:110px" placeholder="ej. 1032,5"></label>
               <button class="btn" id="ye-reload">Recalcular</button>
+              <button class="btn" id="ye-estimate" title="Completar los que faltan con el precio actual de mercado (aprox., no el del 31/12)">≈ Estimar faltantes</button>
               <button class="btn primary" id="ye-pdf">📄 Exportar PDF</button>
             </div>
           </div>
