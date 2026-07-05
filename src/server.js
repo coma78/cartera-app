@@ -14,9 +14,9 @@ import {
   listSales, sellFromLot, deleteSaleRestore,
   saveSeries, deleteAllSeries,
   listRfTrades, saveRfTrades, deleteRfTrade, deleteAllRfTrades, updateRfTrade,
-  listRfPrices, setRfPrice, saveRfPricesAuto, clearRfPrices,
+  listRfPrices, setRfPrice, saveRfPricesAuto, clearRfPrices, saveRfPriceSnapshot, listRfPriceHistory,
   listRfPayments, saveRfPayments,
-  listRfIncome, saveRfIncome,
+  listRfIncome, saveRfIncome, clearRfIncome,
   listRfCatalog, addRfCatalog, updateRfCatalog, deleteRfCatalog,
 } from './db.js';
 import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep, suggestReinforce } from './rentafija.js';
@@ -504,20 +504,27 @@ app.post('/api/rf/price', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Refrescar precios automáticos desde data912.
-app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
+// Baja data912 (tenencias + catálogo), actualiza rf_prices y guarda snapshot
+// diario. Reutilizable por el botón manual y por el cron.
+async function updateRfPrices() {
   const [trades, cat] = await Promise.all([listRfTrades(), listRfCatalog()]);
   const held = [...new Set([...trades.map((t) => t.ticker), ...cat.map((c) => c.ticker)])];
-  if (!held.length) return res.json({ updated: 0, msg: 'No hay tenencias ni catálogo de renta fija' });
-  let updated = 0, error = null, mep = null, mepSource = null, matched = 0;
-  try {
-    const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(trades) });
-    updated = await saveRfPricesAuto(r.prices);
-    mep = r.mep; mepSource = r.mepSource; matched = r.matched;
-    if (!mep) error = 'No se pudo obtener el MEP (probá de nuevo o cargá precios a mano)';
-  } catch (e) { error = e.message; }
-  res.json({ updated, matched, mep, mepSource, error });
+  if (!held.length) return { updated: 0, snapped: 0, msg: 'No hay tenencias ni catálogo de renta fija' };
+  const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(trades) });
+  const updated = await saveRfPricesAuto(r.prices);
+  const eff = await listRfPrices();
+  const map = {};
+  for (const tk of Object.keys(eff)) if (eff[tk].price > 0) map[tk] = eff[tk].price;
+  const snapped = await saveRfPriceSnapshot(map);
+  return { updated, snapped, mep: r.mep, mepSource: r.mepSource, matched: r.matched, error: r.mep ? null : 'No se pudo obtener el MEP (probá de nuevo o cargá precios a mano)' };
+}
+// Refrescar precios automáticos desde data912.
+app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
+  try { res.json(await updateRfPrices()); }
+  catch (e) { res.json({ updated: 0, error: e.message }); }
 }));
+// Histórico de precios (snapshot) para la evolución.
+app.get('/api/rf/price-history', wrap(async (req, res) => res.json(await listRfPriceHistory(req.query.ticker || null))));
 
 app.get('/api/rf/payments', wrap(async (_req, res) => res.json(await listRfPayments())));
 
@@ -560,9 +567,9 @@ app.post('/api/rf/import-movimientos', wrap(async (req, res) => {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
   if (!rows.length) return res.status(400).json({ error: 'No se recibieron filas del archivo' });
   const income = extractIncome(rows);
-  const saved = await saveRfIncome(income);
+  const nuevos = await saveRfIncome(income, { replace: req.body?.replace === true });
   const rf = await computeRf();
-  res.json({ eventos: saved, rentaCobrada: rf.totals.rentaCobrada, totals: rf.totals });
+  res.json({ eventos: income.length, nuevos, rentaCobrada: rf.totals.rentaCobrada, totals: rf.totals });
 }));
 
 // Limpiar precios cacheados (por defecto sólo los automáticos).
@@ -607,7 +614,7 @@ app.get('/api/rf/consolidated', wrap(async (_req, res) => {
 app.post('/api/rf/reset', wrap(async (_req, res) => {
   await deleteAllRfTrades();
   await saveRfPayments([]);
-  await saveRfIncome([]);
+  await clearRfIncome();
   res.json({ ok: true });
 }));
 
@@ -638,6 +645,13 @@ async function start() {
         console.log(`[cron] reporte #${r.reportId} — mail: ${r.emailResult.sent ? 'enviado' : r.emailResult.reason}`);
       } catch (e) {
         console.error('[cron] error:', e.message);
+      }
+      // Precios de renta fija (data912) + snapshot diario para la evolución.
+      try {
+        const rf = await updateRfPrices();
+        console.log(`[cron] renta fija — precios ${rf.updated}, snapshot ${rf.snapped}${rf.error ? ' — ' + rf.error : ''}`);
+      } catch (e) {
+        console.error('[cron] rf precios error:', e.message);
       }
     }, { timezone: tz });
     console.log(`[cron] programado ${expr} (${tz})`);

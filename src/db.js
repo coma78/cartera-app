@@ -121,6 +121,15 @@ export async function migrate() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Histórico de precios (snapshot diario) para la evolución de cada ON/bono.
+  await query(`
+    CREATE TABLE IF NOT EXISTS rf_price_history (
+      ticker TEXT NOT NULL,
+      fecha  DATE NOT NULL,
+      price  NUMERIC NOT NULL,
+      PRIMARY KEY (ticker, fecha)
+    );
+  `);
   await query(`
     CREATE TABLE IF NOT EXISTS rf_payments (
       id           SERIAL PRIMARY KEY,
@@ -453,6 +462,33 @@ export async function setRfPrice(ticker, price, source = 'manual') {
     [tk, price != null ? Number(price) : null, source]
   );
 }
+// Guarda un snapshot diario de precios (uno por ticker por fecha).
+export async function saveRfPriceSnapshot(map = {}, fecha = null) {
+  const f = fecha || new Date().toISOString().slice(0, 10);
+  let n = 0;
+  for (const tk of Object.keys(map)) {
+    const price = Number(map[tk]);
+    if (!(price > 0)) continue;
+    await query(
+      `INSERT INTO rf_price_history (ticker, fecha, price) VALUES ($1,$2,$3)
+       ON CONFLICT (ticker, fecha) DO UPDATE SET price = EXCLUDED.price`,
+      [String(tk).toUpperCase().trim(), f, price]
+    );
+    n++;
+  }
+  return n;
+}
+export async function listRfPriceHistory(ticker = null) {
+  const { rows } = ticker
+    ? await query('SELECT ticker, fecha, price FROM rf_price_history WHERE ticker=$1 ORDER BY fecha ASC', [String(ticker).toUpperCase().trim()])
+    : await query('SELECT ticker, fecha, price FROM rf_price_history ORDER BY fecha ASC');
+  return rows.map((r) => ({
+    ticker: r.ticker,
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10),
+    price: Number(r.price) || 0,
+  }));
+}
+
 // Precios automáticos (data912): no piso los precios cargados a mano.
 export async function saveRfPricesAuto(map = {}) {
   const { rows } = await query(`SELECT ticker FROM rf_prices WHERE source = 'manual'`);
@@ -519,17 +555,27 @@ export async function listRfIncome() {
     importe: Number(r.importe) || 0, tipo: r.tipo || 'renta',
   }));
 }
-export async function saveRfIncome(rows = []) {
-  await query('DELETE FROM rf_income');
+// Agrega renta cobrada SIN duplicar (idempotente): si el evento
+// (ticker+fecha+importe+tipo) ya existe, lo saltea. Lo ya cobrado no se toca,
+// así podés importar solo lo nuevo (desde el último import) o el archivo entero.
+export async function saveRfIncome(rows = [], { replace = false } = {}) {
+  if (replace) await query('DELETE FROM rf_income');
   let n = 0;
   for (const p of rows) {
     const tk = String(p.ticker || '').toUpperCase().trim();
     if (!tk || !(Number(p.importe) > 0)) continue;
-    await query('INSERT INTO rf_income (ticker, fecha, importe, tipo) VALUES ($1,$2,$3,$4)',
-      [tk, p.fecha || null, Number(p.importe) || 0, p.tipo === 'ramort' ? 'ramort' : 'renta']);
+    const f = p.fecha || null;
+    const imp = Number(p.importe) || 0;
+    const tipo = p.tipo === 'ramort' ? 'ramort' : 'renta';
+    const ex = await query('SELECT 1 FROM rf_income WHERE ticker=$1 AND fecha=$2 AND importe=$3 AND tipo=$4 LIMIT 1', [tk, f, imp, tipo]);
+    if (ex.rowCount) continue; // ya cargado, no duplico
+    await query('INSERT INTO rf_income (ticker, fecha, importe, tipo) VALUES ($1,$2,$3,$4)', [tk, f, imp, tipo]);
     n++;
   }
   return n;
+}
+export async function clearRfIncome() {
+  await query('DELETE FROM rf_income');
 }
 
 export async function saveRfPayments(rows = []) {

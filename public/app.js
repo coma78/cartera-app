@@ -1410,11 +1410,37 @@ async function renderRfAnalisis() {
       r.ganCapital != null ? `<span class="${cls(r.ganCapital)}">${money(r.ganCapital)}${r.ganCapitalPct != null ? ' · ' + rfPct(r.ganCapitalPct) : ''}</span>` : '—',
       r.rentaCobrada > 0 ? `<span class="pos">${money(r.rentaCobrada)}</span>` : '—',
     ]), [1, 0, 0, 0, 0]);
+  html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Evolución de precio</h2>
+    <select id="rfa-evo-ticker" style="width:auto"></select></div>
+    <div class="muted-sm" style="margin:-4px 0 6px">Se arma con el snapshot diario de data912 (USD por nominal).</div>
+    <div class="chart-wrap" style="height:220px"><canvas id="rfa-evo"></canvas></div>`;
   el.innerHTML = html;
   const labels = rows.map(r => r.ticker);
   rfDoughnutBy('rfa-dist', labels, rows.map(r => round2((r.valorActual || 0) / (totVal || 1) * 100)));
   const gains = rows.map(r => round2(r.ganCapitalPct || 0));
   rfBarSigned('rfa-gain', labels, gains);
+  const evoSel = document.getElementById('rfa-evo-ticker');
+  if (evoSel) {
+    evoSel.innerHTML = labels.map(t => `<option>${t}</option>`).join('');
+    evoSel.onchange = () => drawRfEvo(evoSel.value);
+    if (labels.length) drawRfEvo(labels[0]);
+  }
+}
+async function drawRfEvo(ticker) {
+  let hist = [];
+  try { hist = await api('/rf/price-history?ticker=' + encodeURIComponent(ticker)); } catch { hist = []; }
+  const cv = document.getElementById('rfa-evo'); if (!cv || typeof Chart === 'undefined') return;
+  if (CHARTS['rfa-evo']) CHARTS['rfa-evo'].destroy();
+  if (!hist.length) {
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = '#8a97a8'; ctx.font = '13px sans-serif'; ctx.fillText('Sin histórico todavía (se completa con el snapshot diario)', 10, 24);
+    return;
+  }
+  CHARTS['rfa-evo'] = new Chart(cv, {
+    type: 'line',
+    data: { labels: hist.map(h => fmtDate(h.fecha)), datasets: [{ data: hist.map(h => h.price), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.12)', fill: true, tension: 0.2, pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => ticker + ': ' + x.raw } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: false } } },
+  });
 }
 function rfDoughnutBy(id, labels, data) {
   const cv = document.getElementById(id); if (!cv || typeof Chart === 'undefined') return;
@@ -1501,7 +1527,7 @@ async function onImportMovimientos(e) {
     })).filter(r => r.descripcion);
     if (!rows.length) return toast('No se detectaron movimientos');
     const res = await api('/rf/import-movimientos', { method: 'POST', body: JSON.stringify({ rows }) });
-    toast(`Renta cobrada cargada · ${res.eventos} eventos · ${money(res.rentaCobrada)}`);
+    toast(res.nuevos ? `Renta: ${res.nuevos} eventos nuevos (sin duplicar) · total ${money(res.rentaCobrada)}` : `Sin eventos nuevos · total ${money(res.rentaCobrada)}`);
     RF_DATA = null; RF_CONS = null; renderSection(CURRENT_SEC);
   } catch (err) { toast('Error al importar movimientos: ' + err.message); }
 }
