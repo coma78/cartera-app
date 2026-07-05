@@ -613,6 +613,59 @@ app.post('/api/rf/reset', wrap(async (_req, res) => {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 
+// ==================== POSICIÓN CONSOLIDADA AL 31/12 (ARCA) ====================
+// Reconstruye qué tenías al 31/12 del año elegido (por defecto el año previo),
+// a partir de tus transacciones. Los precios al 31/12 se editan en la UI.
+app.get('/api/yearend', wrap(async (req, res) => {
+  const now = new Date();
+  const year = Number(req.query.year) > 0 ? Number(req.query.year) : now.getFullYear() - 1;
+  const cutoff = `${year}-12-31`;
+  const [holdings, sales, trades] = await Promise.all([listHoldings(), listSales(), listRfTrades()]);
+
+  // Fechas: pg puede devolver DATE como objeto Date -> normalizamos a 'YYYY-MM-DD'.
+  const ymdOf = (v) => !v ? null : (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+
+  // --- CEDEARs (renta variable) al cutoff ---
+  const salesByLot = {};
+  for (const s of sales) (salesByLot[s.holding_id] ??= []).push(s);
+  const cedByTk = {};
+  for (const h of holdings) {
+    const pd = ymdOf(h.purchase_date);
+    if (!pd || pd > cutoff) continue; // comprado después del 31/12
+    let qty = Number(h.quantity) || 0;
+    for (const s of (salesByLot[h.id] || [])) {
+      const sd = ymdOf(s.sell_date);
+      if (sd && sd > cutoff) qty += Number(s.quantity) || 0; // vendido después: al 31/12 aún lo tenías
+    }
+    if (qty <= 0) continue;
+    const g = (cedByTk[h.ticker] ??= { ticker: h.ticker, ratio: Number(h.ratio) || 1, quantity: 0, cost: 0 });
+    g.quantity += qty;
+    g.cost += qty * (Number(h.buy_price) || 0) / (Number(h.ratio) || 1); // costo por CEDEAR en USD
+  }
+  const cedears = Object.values(cedByTk).map((g) => ({
+    ticker: g.ticker, tipo: 'CEDEAR', cantidad: g.quantity, ratio: g.ratio,
+    precioProvisorio: g.quantity > 0 ? Math.round(g.cost / g.quantity * 10000) / 10000 : 0,
+  })).sort((a, b) => a.ticker.localeCompare(b.ticker));
+
+  // --- Renta fija (ONs + bonos) al cutoff ---
+  const rfByTk = {};
+  for (const t of trades) {
+    if (!isRF(t.clase)) continue;
+    const f = t.fecha instanceof Date ? t.fecha.toISOString().slice(0, 10) : (t.fecha ? String(t.fecha).slice(0, 10) : null);
+    if (!f || f > cutoff) continue;
+    const g = (rfByTk[t.ticker] ??= { ticker: t.ticker, vn: 0, cost: 0, nom: 0, clase: t.clase, emisor: t.emisor });
+    const q = Number(t.cantidad) || 0;
+    if (String(t.side).toUpperCase() === 'VENTA') g.vn -= q;
+    else { g.vn += q; g.cost += q * (Number(t.precio_usd) || 0); g.nom += q; }
+  }
+  const rentafija = Object.values(rfByTk).filter((g) => g.vn > 0).map((g) => ({
+    ticker: g.ticker, tipo: g.clase || 'ON', emisor: g.emisor || '', cantidad: g.vn, ratio: 1,
+    precioProvisorio: g.nom > 0 ? Math.round(g.cost / g.nom * 10000) / 10000 : 0,
+  })).sort((a, b) => a.ticker.localeCompare(b.ticker));
+
+  res.json({ year, cutoff, cedears, rentafija });
+}));
+
 // ---- Static UI (la portada pide login si el SSO está activo) ----
 app.get('/', pageGuard, (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.use(express.static(path.join(__dirname, '..', 'public')));

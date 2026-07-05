@@ -116,7 +116,7 @@ function startIdle() {
 }
 
 // ---------- Navegación ----------
-const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', 'rf-sug': 'Renta fija · Sugerencias', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
+const SEC_TITLES = { rendimientos: 'Rendimientos Totales', resumen: 'Rendimiento RV', cartera: 'Cartera', 'rf-analisis': 'Rendimientos RF', rentafija: 'Renta fija · Cartera', 'rf-mov': 'Renta fija · Movimientos', 'rf-ventas': 'Renta fija · Ventas', 'rf-crono': 'Renta fija · Cronograma', 'rf-catalogo': 'Renta fija · Catálogo', 'rf-sug': 'Renta fija · Sugerencias', yearend: 'Posición al 31/12', sugerencias: 'Sugerencias', descubrir: 'Descubrir', tickers: 'Catálogo', tenencias: 'Movimientos', ventas: 'Ventas', reportes: 'Reportes diarios' };
 function showSection(sec) {
   if (!document.getElementById('sec-' + sec)) sec = 'resumen';
   CURRENT_SEC = sec;
@@ -146,6 +146,7 @@ function renderSection(sec) {
   else if (sec === 'tenencias') renderManage();
   else if (sec === 'ventas') renderVentas();
   else if (sec === 'reportes') renderReportsList();
+  else if (sec === 'yearend') renderYearend();
 }
 
 // ---------- Carga de datos ----------
@@ -1163,6 +1164,9 @@ function bindEvents() {
   document.getElementById('rfv-go').onclick = registerRfSale;
   document.getElementById('rf-cat-add').onclick = () => openRfCatalogForm();
   document.getElementById('rf-cat-seed').onclick = seedRfCatalog;
+  document.getElementById('ye-reload').onclick = renderYearend;
+  document.getElementById('ye-pdf').onclick = exportYearendPdf;
+  document.getElementById('ye-fx').addEventListener('input', recomputeYearend);
   document.getElementById('rfs-search').addEventListener('input', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-clase').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-new').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
@@ -1779,6 +1783,81 @@ function drawSugMonthly(s) {
     data: { labels: s.monthly.map(m => mesLabel(m.ym)), datasets: [{ data: s.monthly.map(m => round2(m.total)), backgroundColor: s.monthly.map(m => lowSet.has(m.ym) ? '#f87171' : '#1D9E75'), borderRadius: 4 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => money(x.raw) } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } },
   });
+}
+
+// ---- Posición consolidada al 31/12 (ARCA) ----
+let YE_POS = [], YE_META = {};
+const yeFx = () => Number(document.getElementById('ye-fx').value) || 0;
+const arsFmt = (n) => '$ ' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+async function renderYearend() {
+  const el = document.getElementById('ye-content'); if (!el) return;
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
+  const yEl = document.getElementById('ye-year');
+  const year = Number(yEl.value) || '';
+  let d; try { d = await api('/yearend' + (year ? ('?year=' + year) : '')); }
+  catch (e) { el.innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; return; }
+  YE_META = { year: d.year, cutoff: d.cutoff };
+  yEl.value = d.year;
+  document.getElementById('ye-sub').textContent = 'al ' + fmtDate(d.cutoff);
+  YE_POS = [...d.cedears, ...d.rentafija].map(p => ({ ...p, precio: p.precioProvisorio }));
+  renderYearendTable();
+}
+function renderYearendTable() {
+  const el = document.getElementById('ye-content'); if (!el) return;
+  if (!YE_POS.length) { el.innerHTML = '<div class="empty">No tenías posiciones al ' + fmtDate(YE_META.cutoff) + '.</div>'; return; }
+  const fx = yeFx();
+  const body = YE_POS.map((p, i) => {
+    const v = (Number(p.cantidad) || 0) * (Number(p.precio) || 0);
+    return `<tr>
+      <td>${tb(p.ticker)} <span class="muted-sm">${esc(p.tipo)}${p.emisor ? ' · ' + esc(p.emisor) : ''}</span></td>
+      <td class="num">${nf(p.cantidad)}</td>
+      <td class="num"><input type="number" step="any" data-i="${i}" class="ye-px" value="${p.precio}" style="width:96px"></td>
+      <td class="num" id="ye-vu-${i}">${money(v)}</td>
+      <td class="num" id="ye-va-${i}">${fx > 0 ? arsFmt(v * fx) : '—'}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table><thead><tr><th>Ticker</th><th class="num">Cantidad</th><th class="num">Precio 31/12 (USD)</th><th class="num">Valor USD</th><th class="num">Valor ARS</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td><b>Total</b></td><td></td><td></td><td class="num" id="ye-tot-u"></td><td class="num" id="ye-tot-a"></td></tr></tfoot></table>`;
+  el.querySelectorAll('.ye-px').forEach(inp => inp.addEventListener('input', () => { YE_POS[Number(inp.dataset.i)].precio = Number(inp.value) || 0; recomputeYearend(); }));
+  recomputeYearend();
+}
+function recomputeYearend() {
+  const fx = yeFx(); let tot = 0;
+  YE_POS.forEach((p, i) => {
+    const v = (Number(p.cantidad) || 0) * (Number(p.precio) || 0); tot += v;
+    const vu = document.getElementById('ye-vu-' + i); if (vu) vu.textContent = money(v);
+    const va = document.getElementById('ye-va-' + i); if (va) va.textContent = fx > 0 ? arsFmt(v * fx) : '—';
+  });
+  const tu = document.getElementById('ye-tot-u'); if (tu) tu.innerHTML = '<b>' + money(tot) + '</b>';
+  const ta = document.getElementById('ye-tot-a'); if (ta) ta.innerHTML = '<b>' + (fx > 0 ? arsFmt(tot * fx) : '—') + '</b>';
+}
+function exportYearendPdf() {
+  if (!YE_POS.length) return toast('No hay posiciones para exportar');
+  const fx = yeFx(); let tot = 0;
+  const m2 = (n) => 'USD ' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const ars = (n) => fx > 0 ? '$ ' + Number(n * fx).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const rowsHtml = YE_POS.map(p => {
+    const v = (Number(p.cantidad) || 0) * (Number(p.precio) || 0); tot += v;
+    return `<tr><td>${p.ticker}</td><td>${p.tipo}${p.emisor ? ' - ' + p.emisor : ''}</td><td style="text-align:right">${Number(p.cantidad).toLocaleString('es-AR')}</td><td style="text-align:right">${Number(p.precio).toLocaleString('es-AR', { maximumFractionDigits: 4 })}</td><td style="text-align:right">${m2(v)}</td><td style="text-align:right">${ars(v)}</td></tr>`;
+  }).join('');
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Posición al ${fmtDate(YE_META.cutoff)}</title>
+    <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:28px}h1{font-size:18px;margin:0 0 4px}
+    .meta{font-size:12px;color:#444;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border-bottom:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f2f2f2}
+    tfoot td{font-weight:bold;border-top:2px solid #333}.disc{font-size:10px;color:#777;margin-top:22px}</style></head>
+    <body>
+    <h1>Posición consolidada al ${fmtDate(YE_META.cutoff)}</h1>
+    <div class="meta">Titular: ${esc(CONFIG.user || '')} &nbsp;·&nbsp; Tipo de cambio 31/12: ${fx > 0 ? ('$ ' + fx.toLocaleString('es-AR') + ' por USD') : '(sin cargar)'}</div>
+    <table><thead><tr><th>Ticker</th><th>Tipo</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Precio 31/12 (USD)</th><th style="text-align:right">Valor USD</th><th style="text-align:right">Valor ARS</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot><tr><td colspan="4">Total</td><td style="text-align:right">${m2(tot)}</td><td style="text-align:right">${ars(tot)}</td></tr></tfoot></table>
+    <p class="disc">Informativo, no asesoramiento fiscal. Verificá valuaciones y tipo de cambio con las fuentes oficiales de ARCA. Generado el ${new Date().toLocaleDateString('es-AR')}.</p>
+    <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+    </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return toast('Permití las ventanas emergentes para exportar el PDF');
+  w.document.write(html); w.document.close();
 }
 
 // ---------- Init ----------
