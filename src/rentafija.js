@@ -337,7 +337,7 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], price
       ticker: tk, held: heldSet.has(tk), rating: c?.rating || '', minNominales: minN,
       emisor: c?.emisor || (rows.find((r) => r.ticker === tk)?.emisor) || '',
       clase: c?.clase || (rows.find((r) => r.ticker === tk)?.clase) || '',
-      senal: gg ? gg.senal : null, enGuia: !!gg,
+      senal: gg ? gg.senal : null, perfil: gg ? gg.perfil : null, enGuia: !!gg,
       precio, nominales, alcanzaMinimo: nominales == null ? null : (nominales >= minN),
     };
   };

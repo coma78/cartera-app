@@ -39,23 +39,41 @@ function normSenal(s) {
 // Celda con forma "TICKER - Nombre" o "TICKER/D - Nombre" o "S30S6- LECAP".
 const TICKER_CELL = /^\s*([A-Z0-9]{1,7})(\/[A-Z0-9]+)?\s*-\s*\S/;
 
+function perfilAt(perfilCols, i) {
+  let p = null;
+  for (const pc of perfilCols) if (pc.col <= i) p = pc.perfil;
+  return p;
+}
+
 export function parseGuide(csv) {
   const rows = parseCsv(csv);
   const map = {};
   let seccion = null;
+  let perfilCols = []; // columnas de cada perfil, según el encabezado más reciente
   for (const row of rows) {
+    // Detectar fila de encabezado de perfiles (Conservador/Moderado/Agresivo).
+    const pcols = [];
+    for (let i = 0; i < row.length; i++) {
+      const u = String(row[i] || '').toUpperCase();
+      if (u.includes('CONSERVADOR')) pcols.push({ col: i, perfil: 'Conservador' });
+      else if (u.includes('MODERADO')) pcols.push({ col: i, perfil: 'Moderado' });
+      else if (u.includes('AGRESIVO')) pcols.push({ col: i, perfil: 'Agresivo' });
+    }
+    if (pcols.length >= 2) perfilCols = pcols;
+
     const joined = row.join(' ').toUpperCase();
     if (joined.includes('RENTA FIJA')) seccion = 'RF';
     else if (joined.includes('RENTA VARIABLE')) seccion = 'RV';
     else if (joined.includes('FCIS') || joined.includes('FONDOS COMUNES')) seccion = 'FCI';
+
     for (let i = 0; i < row.length; i++) {
       const cell = String(row[i] || '').trim();
       const m = cell.match(TICKER_CELL);
       if (!m) continue;
       const senal = normSenal(row[i + 1]);
-      if (!senal) continue; // sin Comprar/Mantener/Vender al lado -> no es recomendación
+      if (!senal) continue;
       const tk = m[1].toUpperCase();
-      if (!map[tk]) map[tk] = { ticker: tk, senal, nombre: cell.replace(/\s+/g, ' ').trim(), seccion };
+      if (!map[tk]) map[tk] = { ticker: tk, senal, nombre: cell.replace(/\s+/g, ' ').trim(), seccion, perfil: perfilAt(perfilCols, i) };
     }
   }
   return map;
