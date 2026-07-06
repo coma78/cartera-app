@@ -274,9 +274,12 @@
         <div class="panel">
           <div class="panel-head"><h2>Sugerencias RF <span class="muted-sm">emparejar la renta del año</span></h2></div>
           <div class="filters">
+            <label>Monto a reinvertir (USD)<input type="number" id="rfs-monto" step="any" placeholder="ej. 500"></label>
             <label>Buscar<input id="rfs-search" placeholder="ticker o emisor"></label>
             <label>Clase<select id="rfs-clase"><option value="">Todas</option><option>ON</option><option>Bono</option></select></label>
+            <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="rfs-comprar" style="width:auto"> Solo "Comprar" (guía)</label>
             <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="rfs-new" style="width:auto"> Solo nuevas (catálogo)</label>
+            <button class="btn" id="rfs-go">Calcular</button>
           </div>
           <div id="rf-sug-content"></div>
           <p class="disclaimer" style="padding:0">Análisis informativo para emparejar tu flujo de renta, no asesoramiento. El rating es el que cargaste; verificá antes de operar.</p>

@@ -21,6 +21,7 @@ import {
 } from './db.js';
 import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep, suggestReinforce } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
+import { getGuide } from './guide.js';
 
 // MEP implícito más reciente a partir de los boletos (respaldo si dolarapi falla).
 function latestImpliedMep(trades) {
@@ -588,11 +589,15 @@ app.post('/api/rf/catalog/seed-held', wrap(async (_req, res) => {
   res.json({ added });
 }));
 
-// Sugerencias RF: reforzar meses de renta baja.
-app.get('/api/rf/suggest', wrap(async (_req, res) => {
-  const [rf, catalog] = await Promise.all([computeRf(), listRfCatalog()]);
-  const s = suggestReinforce({ payments: rf.payments, rows: rf.rows, catalog, today: rf.today });
-  res.json(s);
+// Guía de recomendaciones (Google Sheet público, cacheada).
+app.get('/api/guide', wrap(async (_req, res) => res.json(await getGuide())));
+
+// Sugerencias RF: reforzar meses de renta baja + cruce con la guía + monto.
+app.get('/api/rf/suggest', wrap(async (req, res) => {
+  const [rf, catalog, prices, guide] = await Promise.all([computeRf(), listRfCatalog(), listRfPrices(), getGuide()]);
+  const monto = Number(req.query.monto) || 0;
+  const s = suggestReinforce({ payments: rf.payments, rows: rf.rows, catalog, prices, guide: guide.map || {}, monto, today: rf.today });
+  res.json({ ...s, guideUpdated: guide.updated, guideError: guide.error || null });
 }));
 
 // Importar movimientos → renta cobrada histórica por ON (patas USD de "Renta").

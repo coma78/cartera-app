@@ -1183,6 +1183,9 @@ function bindEvents() {
   document.getElementById('rfs-search').addEventListener('input', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-clase').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-new').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
+  document.getElementById('rfs-comprar').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
+  document.getElementById('rfs-go').onclick = renderRfSug;
+  document.getElementById('rfs-monto').addEventListener('change', renderRfSug);
   document.getElementById('btn-run').onclick = async function () {
     this.disabled = true; this.textContent = 'Generando…';
     try {
@@ -1839,10 +1842,15 @@ async function seedRfCatalog() {
 // ---- Sugerencias RF (reforzar meses flojos) ----
 let RF_SUG = null;
 const mesLabel = (ym) => { const [y, mm] = ym.split('-'); return ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][+mm - 1] + ' ' + y.slice(2); };
+const senalBadge = (s) => !s ? '<span class="neg" title="No figura en tu guía">⚠ fuera de guía</span>'
+  : s === 'Comprar' ? '<span class="pos">Comprar</span>'
+    : s === 'Vender' ? '<span class="neg">Vender</span>'
+      : '<span style="color:var(--amber,#e0a800)">Mantener</span>';
 async function renderRfSug() {
   const el = document.getElementById('rf-sug-content'); if (!el) return;
   el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
-  try { RF_SUG = await api('/rf/suggest'); } catch { RF_SUG = null; }
+  const monto = Number(document.getElementById('rfs-monto').value) || 0;
+  try { RF_SUG = await api('/rf/suggest' + (monto ? ('?monto=' + monto) : '')); } catch { RF_SUG = null; }
   renderRfSugResult();
 }
 function renderRfSugResult() {
@@ -1852,24 +1860,40 @@ function renderRfSugResult() {
   const q = (document.getElementById('rfs-search').value || '').toLowerCase().trim();
   const clase = document.getElementById('rfs-clase').value;
   const onlyNew = document.getElementById('rfs-new').checked;
-  let html = `<div class="muted-sm" style="margin-bottom:6px">Renta promedio mensual: <b>${money(s.avg)}</b> · umbral de "valle": ${money(s.umbral)} (en rojo)</div>
+  const onlyComprar = document.getElementById('rfs-comprar').checked;
+  const monto = Number(document.getElementById('rfs-monto').value) || 0;
+
+  let html = '';
+  html += `<div class="muted-sm" style="margin-bottom:6px">${s.guideCount ? `Guía: ${s.guideCount} recomendaciones cruzadas` : (s.guideError ? `⚠ Guía no disponible (${s.guideError})` : 'Guía no cargada')}</div>`;
+  if ((s.alertasVender || []).length) html += `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">⚠ Tu guía marca <b>Vender</b> algo que tenés: ${s.alertasVender.map(a => a.ticker).join(', ')}. Revisá si conviene salir.</div>`;
+  if ((s.fueraGuia || []).length) html += `<div class="muted-sm" style="margin-bottom:10px">Tenés fuera de la guía: ${s.fueraGuia.join(', ')}</div>`;
+  html += `<div class="muted-sm" style="margin-bottom:6px">Renta promedio mensual: <b>${money(s.avg)}</b> · umbral de "valle": ${money(s.umbral)} (en rojo)</div>
     <div class="chart-wrap" style="height:200px"><canvas id="rf-sug-monthly"></canvas></div>`;
+
   if (!s.suggestions.length) {
     html += '<div class="empty" style="margin-top:12px">No hay meses por debajo del umbral: tu renta está bastante pareja 👌</div>';
     el.innerHTML = html; drawSugMonthly(s); return;
   }
+  const cols = monto > 0 ? ['Ticker', 'Guía', 'Rating', 'Mín. nom.', 'Nominales'] : ['Ticker', 'Guía', 'Rating', 'Mín. nom.', 'Estado'];
+  const align = [1, 0, 0, 0, 0];
   html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">';
   for (const m of s.suggestions) {
     let cands = m.candidatos;
     if (clase) cands = cands.filter(c => c.clase === clase);
     if (onlyNew) cands = cands.filter(c => !c.held);
+    if (onlyComprar) cands = cands.filter(c => c.senal === 'Comprar');
     if (q) cands = cands.filter(c => c.ticker.toLowerCase().includes(q) || String(c.emisor).toLowerCase().includes(q));
     html += `<div class="panel" style="box-shadow:none;border:1px solid var(--line);padding:12px">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px"><b>${mesLabel(m.ym)}</b><span class="muted-sm">cobrás ${money(m.total)}</span></div>`;
     html += cands.length
-      ? rfTable(['Ticker', 'Rating', 'Mín. nom.', 'Estado'],
-        cands.map(c => [`${tb(c.ticker)} <span class="muted-sm">${esc(c.emisor || '')}</span>`, esc(c.rating || '—'), c.minNominales ? nf(c.minNominales) : '—', c.held ? '<span class="pos">la tenés</span>' : '<span class="muted-sm">nueva (catálogo)</span>']), [1, 0, 0, 0])
-      : `<div class="muted-sm">Ninguna especie paga en ${mesLabel(m.ym)} (con los filtros / lo cargado). Buena candidata para sumar una ON nueva de ese mes.</div>`;
+      ? rfTable(cols, cands.map(c => {
+        const estado = c.held ? '<span class="pos">la tenés</span>' : '<span class="muted-sm">nueva</span>';
+        const nomCell = c.nominales != null
+          ? `${nf(c.nominales)}${c.alcanzaMinimo === false ? ' <span class="neg">(&lt; mín)</span>' : ''}`
+          : (c.precio == null ? '<span class="muted-sm">sin precio</span>' : '—');
+        return [`${tb(c.ticker)} <span class="muted-sm">${esc(c.emisor || '')}${c.held ? '' : ' · nueva'}</span>`, senalBadge(c.senal), esc(c.rating || '—'), c.minNominales ? nf(c.minNominales) : '—', monto > 0 ? nomCell : estado];
+      }), align)
+      : `<div class="muted-sm">Ninguna especie (con estos filtros) paga en ${mesLabel(m.ym)}. Buena candidata para sumar una ON nueva de ese mes desde el Catálogo.</div>`;
     html += '</div>';
   }
   html += '</div>';

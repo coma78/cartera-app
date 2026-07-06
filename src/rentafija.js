@@ -313,7 +313,7 @@ export function monthlyRenta(payments = [], { today, months = 12 } = {}) {
 // Sugerencia: reforzar los meses con renta más baja. Mira la renta por mes y,
 // para los meses "valle", propone las especies (tuyas o del catálogo) que pagan
 // en ese mes, con su rating y mínimo de nominales.
-export function suggestReinforce({ payments = [], rows = [], catalog = [], today, months = 12 } = {}) {
+export function suggestReinforce({ payments = [], rows = [], catalog = [], prices = {}, guide = {}, monto = 0, today, months = 12 } = {}) {
   const hoy = today || new Date().toISOString().slice(0, 10);
   const monthly = monthlyRenta(payments, { today: hoy, months });
   const heldSet = new Set(rows.map((r) => r.ticker));
@@ -326,25 +326,36 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], today
     if (ym < curMonth) continue;
     (payMonths[String(p.ticker).toUpperCase().trim()] ??= new Set()).add(ym);
   }
+  const g = (tk) => guide[String(tk).toUpperCase().trim()] || null;
+  const rank = { Comprar: 0, Mantener: 1, Vender: 3 };
+  const enrich = (tk) => {
+    const c = catByTk[tk], gg = g(tk);
+    const precio = prices[tk] && Number(prices[tk].price) > 0 ? Number(prices[tk].price) : null;
+    const minN = c ? Number(c.min_nominales) || 0 : 0;
+    const nominales = (monto > 0 && precio) ? Math.floor(monto / precio) : null;
+    return {
+      ticker: tk, held: heldSet.has(tk), rating: c?.rating || '', minNominales: minN,
+      emisor: c?.emisor || (rows.find((r) => r.ticker === tk)?.emisor) || '',
+      clase: c?.clase || (rows.find((r) => r.ticker === tk)?.clase) || '',
+      senal: gg ? gg.senal : null, enGuia: !!gg,
+      precio, nominales, alcanzaMinimo: nominales == null ? null : (nominales >= minN),
+    };
+  };
   const avg = monthly.length ? monthly.reduce((a, m) => a + m.total, 0) / monthly.length : 0;
   const umbral = avg * 0.75;
   const low = monthly.filter((m) => m.total < umbral).sort((a, b) => a.total - b.total);
   const suggestions = low.map((m) => {
-    const candidatos = [];
-    for (const tk of Object.keys(payMonths)) {
-      if (!payMonths[tk].has(m.ym)) continue;
-      const c = catByTk[tk];
-      candidatos.push({
-        ticker: tk, held: heldSet.has(tk), rating: c?.rating || '',
-        minNominales: c ? Number(c.min_nominales) || 0 : null,
-        emisor: c?.emisor || (rows.find((r) => r.ticker === tk)?.emisor) || '',
-        clase: c?.clase || (rows.find((r) => r.ticker === tk)?.clase) || '',
-      });
-    }
-    candidatos.sort((a, b) => (a.held === b.held ? 0 : a.held ? -1 : 1) || String(a.rating).localeCompare(String(b.rating)));
+    const candidatos = Object.keys(payMonths).filter((tk) => payMonths[tk].has(m.ym)).map(enrich);
+    candidatos.sort((a, b) => (rank[a.senal] ?? 2) - (rank[b.senal] ?? 2) || (a.held === b.held ? 0 : a.held ? -1 : 1) || String(a.rating).localeCompare(String(b.rating)));
     return { ym: m.ym, total: m.total, candidatos };
   });
-  return { monthly, avg: Math.round(avg * 100) / 100, umbral: Math.round(umbral * 100) / 100, suggestions };
+  // Alertas cruzando con la guía.
+  const alertasVender = rows.filter((r) => g(r.ticker) && g(r.ticker).senal === 'Vender').map((r) => ({ ticker: r.ticker, emisor: r.emisor || '' }));
+  const fueraGuia = Object.keys(guide).length ? rows.filter((r) => !g(r.ticker)).map((r) => r.ticker) : [];
+  return {
+    monthly, avg: Math.round(avg * 100) / 100, umbral: Math.round(umbral * 100) / 100,
+    suggestions, alertasVender, fueraGuia, guideCount: Object.keys(guide).length,
+  };
 }
 
 // Próximos cupones (lista), desde hoy.
