@@ -1878,11 +1878,30 @@ function renderRfSugResult() {
   html += `<div class="muted-sm" style="margin-bottom:6px">${s.guideCount ? `Guía: ${s.guideCount} recomendaciones cruzadas` : (s.guideError ? `⚠ Guía no disponible (${s.guideError})` : 'Guía no cargada')}</div>`;
   if ((s.alertasVender || []).length) html += `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">⚠ Tu guía marca <b>Vender</b> algo que tenés: ${s.alertasVender.map(a => a.ticker).join(', ')}. Revisá si conviene salir.</div>`;
   if ((s.fueraGuia || []).length) html += `<div class="muted-sm" style="margin-bottom:10px">Tenés fuera de la guía: ${s.fueraGuia.join(', ')}</div>`;
-  html += `<div class="muted-sm" style="margin-bottom:6px">Renta promedio mensual: <b>${money(s.avg)}</b> · umbral de "valle": ${money(s.umbral)} (en rojo)</div>
+
+  // --- Principal: las "Comprar" de tu guía ---
+  let comprar = (s.comprar || []);
+  if (clase) comprar = comprar.filter(x => !x.clase || x.clase === clase);
+  if (onlyNew) comprar = comprar.filter(x => !x.held);
+  if (q) comprar = comprar.filter(x => x.ticker.toLowerCase().includes(q) || String(x.emisor).toLowerCase().includes(q));
+  html += `<div class="panel-head" style="margin-top:4px"><h2 style="font-size:15px">Para comprar (según tu guía)</h2><span class="muted-sm">${comprar.length}</span></div>`;
+  if (!s.guideCount) html += `<div class="muted-sm" style="margin-bottom:10px">Compartí tu guía (link público) para ver las recomendadas a comprar.</div>`;
+  else if (!comprar.length) html += `<div class="muted-sm" style="margin-bottom:10px">Ninguna "Comprar" con esos filtros.</div>`;
+  else html += rfTable(monto > 0 ? ['Ticker', 'Rating', 'Mín. nom.', 'Nominales', '¿Mes flojo?'] : ['Ticker', 'Rating', 'Mín. nom.', 'Estado', '¿Mes flojo?'],
+    comprar.map(x => {
+      const estado = x.held ? '<span class="pos">la tenés</span>' : '<span class="muted-sm">nueva</span>';
+      const nomCell = x.nominales != null ? `${nf(x.nominales)}${x.alcanzaMinimo === false ? ' <span class="neg">(&lt; mín)</span>' : ''}` : (x.precio == null ? '<span class="muted-sm">sin precio</span>' : '—');
+      const mes = (x.llenaMesFlojo && x.llenaMesFlojo.length) ? `<span class="pos">${x.llenaMesFlojo.map(mesLabel).join(', ')}</span>` : '—';
+      return [`${tb(x.ticker)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, mes];
+    }), [1, 0, 0, 0, 0]);
+
+  // --- Secundario: emparejar renta por mes ---
+  html += `<div class="panel-head" style="margin-top:18px"><h2 style="font-size:15px">Emparejar tu renta por mes</h2><span class="muted-sm">opcional</span></div>
+    <div class="muted-sm" style="margin:-2px 0 6px">Renta promedio mensual: <b>${money(s.avg)}</b> · valle si es menor a ${money(s.umbral)} (en rojo)</div>
     <div class="chart-wrap" style="height:200px"><canvas id="rf-sug-monthly"></canvas></div>`;
 
   if (!s.suggestions.length) {
-    html += '<div class="empty" style="margin-top:12px">No hay meses por debajo del umbral: tu renta está bastante pareja 👌</div>';
+    html += '<div class="muted-sm" style="margin-top:10px">Tu renta está pareja: no hay meses por debajo del umbral 👌</div>';
     el.innerHTML = html; drawSugMonthly(s); return;
   }
   const cols = monto > 0 ? ['Ticker', 'Guía', 'Rating', 'Mín. nom.', 'Nominales'] : ['Ticker', 'Guía', 'Rating', 'Mín. nom.', 'Estado'];

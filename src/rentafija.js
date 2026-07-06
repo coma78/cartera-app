@@ -349,12 +349,23 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], price
     candidatos.sort((a, b) => (rank[a.senal] ?? 2) - (rank[b.senal] ?? 2) || (a.held === b.held ? 0 : a.held ? -1 : 1) || String(a.rating).localeCompare(String(b.rating)));
     return { ym: m.ym, total: m.total, candidatos };
   });
+  // Lista principal: las "Comprar" de renta fija según tu guía (tengas o no).
+  const lowSet = new Set(low.map((m) => m.ym));
+  const comprar = Object.keys(guide)
+    .filter((tk) => guide[tk].seccion === 'RF' && guide[tk].senal === 'Comprar')
+    .map((tk) => {
+      const e = enrich(tk);
+      const meses = payMonths[tk] ? [...payMonths[tk]].filter((ym) => lowSet.has(ym)) : [];
+      return { ...e, nombre: guide[tk].nombre || '', emisor: e.emisor || guide[tk].nombre || '', llenaMesFlojo: meses };
+    })
+    .sort((a, b) => (b.llenaMesFlojo.length - a.llenaMesFlojo.length) || (a.held === b.held ? 0 : a.held ? -1 : 1) || String(a.rating).localeCompare(String(b.rating)));
+
   // Alertas cruzando con la guía.
   const alertasVender = rows.filter((r) => g(r.ticker) && g(r.ticker).senal === 'Vender').map((r) => ({ ticker: r.ticker, emisor: r.emisor || '' }));
   const fueraGuia = Object.keys(guide).length ? rows.filter((r) => !g(r.ticker)).map((r) => r.ticker) : [];
   return {
     monthly, avg: Math.round(avg * 100) / 100, umbral: Math.round(umbral * 100) / 100,
-    suggestions, alertasVender, fueraGuia, guideCount: Object.keys(guide).length,
+    comprar, suggestions, alertasVender, fueraGuia, guideCount: Object.keys(guide).length,
   };
 }
 
