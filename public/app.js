@@ -1894,7 +1894,7 @@ function renderRfSugResult() {
       const estado = x.held ? '<span class="pos">la tenés</span>' : '<span class="muted-sm">nueva</span>';
       const nomCell = x.nominales != null ? `${nf(x.nominales)}${x.alcanzaMinimo === false ? ' <span class="neg">(&lt; mín)</span>' : ''}` : (x.precio == null ? '<span class="muted-sm">sin precio</span>' : '—');
       const mes = (x.llenaMesFlojo && x.llenaMesFlojo.length) ? `<span class="pos">${x.llenaMesFlojo.map(mesLabel).join(', ')}</span>` : '—';
-      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, mes];
+      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, mes];
     }), [1, 0, 0, 0, 0]);
 
   // --- Secundario: emparejar renta por mes ---
@@ -1906,8 +1906,8 @@ function renderRfSugResult() {
     html += '<div class="muted-sm" style="margin-top:10px">Tu renta está pareja: no hay meses por debajo del umbral 👌</div>';
     el.innerHTML = html; drawSugMonthly(s); return;
   }
-  const cols = monto > 0 ? ['Ticker', 'Guía', 'Rating', 'Mín. nom.', 'Nominales'] : ['Ticker', 'Guía', 'Rating', 'Mín. nom.', 'Estado'];
-  const align = [1, 0, 0, 0, 0];
+  const cols = ['Ticker', 'Rating', 'Mín. nom.', monto > 0 ? 'Nominales' : 'Estado'];
+  const align = [1, 0, 0, 0];
   html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">';
   for (const m of s.suggestions) {
     let cands = m.candidatos;
@@ -1923,7 +1923,7 @@ function renderRfSugResult() {
         const nomCell = c.nominales != null
           ? `${nf(c.nominales)}${c.alcanzaMinimo === false ? ' <span class="neg">(&lt; mín)</span>' : ''}`
           : (c.precio == null ? '<span class="muted-sm">sin precio</span>' : '—');
-        return [`${tb(c.ticker)} ${perfilChip(c.perfil)} <span class="muted-sm">${esc(c.emisor || '')}${c.held ? '' : ' · nueva'}</span>`, senalBadge(c.senal), esc(c.rating || '—'), c.minNominales ? nf(c.minNominales) : '—', monto > 0 ? nomCell : estado];
+        return [`${tb(c.ticker)} ${perfilChip(c.perfil)} ${senalBadge(c.senal)} <span class="muted-sm">${esc(c.emisor || '')}${c.held ? '' : ' · nueva'}</span>`, esc(c.rating || '—'), c.minNominales ? nf(c.minNominales) : '—', monto > 0 ? nomCell : estado];
       }), align)
       : `<div class="muted-sm">Ninguna especie (con estos filtros) paga en ${mesLabel(m.ym)}. Buena candidata para sumar una ON nueva de ese mes desde el Catálogo.</div>`;
     html += '</div>';
