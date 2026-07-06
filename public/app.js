@@ -1192,6 +1192,8 @@ function bindEvents() {
   document.getElementById('rfv-go').onclick = registerRfSale;
   document.getElementById('rf-cat-add').onclick = () => openRfCatalogForm();
   document.getElementById('rf-cat-seed').onclick = seedRfCatalog;
+  document.getElementById('rf-cat-estmin').onclick = estimateRfMin;
+  document.getElementById('rf-cat-minimport').onclick = openRfMinImport;
   document.getElementById('rfs-search').addEventListener('input', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-clase').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
   document.getElementById('rfs-new').addEventListener('change', () => { if (RF_SUG) renderRfSugResult(); });
@@ -1850,15 +1852,44 @@ async function seedRfCatalog() {
   try { const r = await api('/rf/catalog/seed-held', { method: 'POST', body: '{}' }); toast(`Agregadas ${r.added} al catálogo`); renderRfCatalogo(); }
   catch (e) { toast(e.message); }
 }
+async function estimateRfMin() {
+  try { const r = await api('/rf/catalog/estimate-min', { method: 'POST', body: '{}' }); toast(r.updated ? `Mínimos estimados: ${r.updated} (editables)` : 'Nada para estimar (ya cargados o sin boletos)'); renderRfCatalogo(); }
+  catch (e) { toast(e.message); }
+}
+function parseMinList(text) {
+  const rows = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const m = raw.trim().match(/^([A-Za-z0-9]{2,10})\D+([\d.]+)/);
+    if (m) rows.push({ ticker: m[1].toUpperCase(), min: Number(String(m[2]).replace(/\./g, '')) });
+  }
+  return rows;
+}
+function openRfMinImport() {
+  document.getElementById('modal-title').textContent = 'Cargar mínimos (pegar)';
+  document.getElementById('modal-body').innerHTML = `
+    <p class="muted-sm" style="margin:0 0 8px">Pegá una línea por especie: <b>ticker y mínimo</b> (ej. <code>YM34O 100</code>). Crea la especie si no está y no toca los demás campos.</p>
+    <textarea id="rf-min-text" rows="9" placeholder="YM34O 100&#10;SFD34 1000&#10;DNC5O 1000"></textarea>
+    <div id="rf-min-prev" class="muted-sm" style="margin-top:6px"></div>`;
+  const ta = document.getElementById('rf-min-text'), prev = document.getElementById('rf-min-prev');
+  ta.addEventListener('input', () => { const r = parseMinList(ta.value); prev.textContent = r.length ? `${r.length} detectadas` : ''; });
+  document.getElementById('modal-save').onclick = async () => {
+    const rows = parseMinList(ta.value);
+    if (!rows.length) return toast('No se detectaron líneas válidas');
+    try { const r = await api('/rf/catalog/min-bulk', { method: 'POST', body: JSON.stringify({ rows }) }); closeModal(); toast(`Mínimos cargados: ${r.updated}`); renderRfCatalogo(); }
+    catch (e) { toast(e.message); }
+  };
+  modal.classList.remove('hidden');
+}
 
 // ---- Sugerencias RF (reforzar meses flojos) ----
 let RF_SUG = null;
 const mesLabel = (ym) => { const [y, mm] = ym.split('-'); return ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][+mm - 1] + ' ' + y.slice(2); };
-const senalBadge = (s) => !s ? '<span class="neg" title="No figura en tu guía">⚠ fuera de guía</span>'
-  : s === 'Comprar' ? '<span class="pos">Comprar</span>'
-    : s === 'Vender' ? '<span class="neg">Vender</span>'
-      : '<span style="color:var(--amber,#e0a800)">Mantener</span>';
-const perfilChip = (p) => !p ? '' : `<span title="Perfil ${p}" style="font-size:11px;padding:1px 6px;border-radius:6px;border:1px solid var(--line);color:${p === 'Conservador' ? '#34d399' : p === 'Agresivo' ? '#f87171' : 'var(--amber,#e0a800)'}">${p === 'Conservador' ? '🛡' : p === 'Agresivo' ? '🚀' : '⚖'} ${p}</span>`;
+const chip = (txt, color, title) => `<span${title ? ` title="${title}"` : ''} style="font-size:11px;padding:1px 6px;border-radius:6px;border:1px solid var(--line);color:${color};white-space:nowrap">${txt}</span>`;
+const senalBadge = (s) => !s ? chip('⚠ fuera', 'var(--red)', 'No figura en tu guía')
+  : s === 'Comprar' ? chip('Comprar', '#34d399')
+    : s === 'Vender' ? chip('Vender', '#f87171')
+      : chip('Mantener', 'var(--amber,#e0a800)');
+const perfilChip = (p) => !p ? '' : chip(`${p === 'Conservador' ? '🛡' : p === 'Agresivo' ? '🚀' : '⚖'} ${p}`, p === 'Conservador' ? '#34d399' : p === 'Agresivo' ? '#f87171' : 'var(--amber,#e0a800)', `Perfil ${p}`);
 async function renderRfSug() {
   const el = document.getElementById('rf-sug-content'); if (!el) return;
   el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';

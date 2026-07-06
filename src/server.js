@@ -592,6 +592,44 @@ app.post('/api/rf/catalog/seed-held', wrap(async (_req, res) => {
 // Guía de recomendaciones (Google Sheet público, cacheada).
 app.get('/api/guide', wrap(async (_req, res) => res.json(await getGuide())));
 
+// Cargar mínimos en lote (pegado "ticker mínimo"). Crea la especie si no está.
+app.post('/api/rf/catalog/min-bulk', wrap(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const cat = await listRfCatalog();
+  const byTk = {};
+  for (const c of cat) byTk[c.ticker] = c;
+  let n = 0;
+  for (const r of rows) {
+    const tk = String(r.ticker || '').toUpperCase().trim();
+    const min = Number(r.min) || 0;
+    if (!tk || !(min > 0)) continue;
+    if (byTk[tk]) await updateRfCatalog(byTk[tk].id, { min_nominales: min });
+    else await addRfCatalog({ ticker: tk, min_nominales: min });
+    n++;
+  }
+  res.json({ updated: n });
+}));
+
+// Estimar el mínimo de nominales desde los boletos (menor cantidad comprada).
+// Sólo completa los que están en blanco (no pisa los que cargaste a mano).
+app.post('/api/rf/catalog/estimate-min', wrap(async (_req, res) => {
+  const [cat, trades] = await Promise.all([listRfCatalog(), listRfTrades()]);
+  const minBuy = {};
+  for (const t of trades) {
+    if (String(t.side).toUpperCase() !== 'COMPRA') continue;
+    const q = Number(t.cantidad) || 0;
+    if (q <= 0) continue;
+    minBuy[t.ticker] = minBuy[t.ticker] == null ? q : Math.min(minBuy[t.ticker], q);
+  }
+  let updated = 0;
+  for (const c of cat) {
+    if (Number(c.min_nominales) > 0) continue;
+    const mb = minBuy[c.ticker];
+    if (mb > 0) { await updateRfCatalog(c.id, { min_nominales: mb }); updated++; }
+  }
+  res.json({ updated });
+}));
+
 // Sugerencias RF: reforzar meses de renta baja + cruce con la guía + monto.
 app.get('/api/rf/suggest', wrap(async (req, res) => {
   const [rf, catalog, prices, guide] = await Promise.all([computeRf(), listRfCatalog(), listRfPrices(), getGuide()]);
