@@ -188,12 +188,15 @@ async function loadSettings() {
   const chkR = document.getElementById('chk-renta-reminder');
   if (chkR) chkR.checked = SETTINGS.rentaReminder !== false;
 }
+let GUIDE_MAP = {};
+async function loadGuide() { try { const g = await api('/guide'); GUIDE_MAP = g.map || {}; } catch { GUIDE_MAP = {}; } }
 async function loadAll() {
   await refreshCatalog();
   await loadDashboard();
   await loadReports();
   await loadSales();
   await loadSettings();
+  loadGuide();
   renderSection(CURRENT_SEC);
 }
 
@@ -780,8 +783,15 @@ function renderSuggestResult(data) {
   let techNote = '';
   if (ti && ti.enabled && ti.count === 0) techNote = `<div class="notice">Sin indicadores técnicos: FMP no devolvió datos${ti.error ? ` — ${ti.error}` : ''}.</div>`;
   else if (ti && !ti.enabled) techNote = `<div class="muted-sm" style="margin-bottom:8px">Indicadores técnicos desactivados (falta FMP_API_KEY en el servidor).</div>`;
+  const gSenal = (tk) => (GUIDE_MAP[String(tk).toUpperCase()] || {}).senal || null;
+  const hasGuide = Object.keys(GUIDE_MAP).length > 0;
+  const vender = rows.filter(r => gSenal(r.ticker) === 'Vender').map(r => r.ticker);
+  const fuera = hasGuide ? rows.filter(r => !gSenal(r.ticker)).map(r => r.ticker) : [];
+  const guideAlert = (vender.length ? `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">⚠ Sugiere comprar algo que tu guía marca <b>Vender</b>: ${vender.join(', ')}.</div>` : '')
+    + (fuera.length ? `<div class="muted-sm" style="margin-bottom:8px">⚠ Fuera de tu guía: ${fuera.join(', ')}</div>` : '')
+    + (hasGuide && !vender.length && !fuera.length ? `<div class="muted-sm" style="margin-bottom:8px"><span class="pos">✓</span> Todo lo sugerido está en tu guía.</div>` : '');
   document.getElementById('sg-result').innerHTML = `
-    ${noticeHtml}${techNote}
+    ${noticeHtml}${techNote}${guideAlert}
     <div class="totals-strip">
       <span>A invertir: <b>${money(p.amount)}</b></span>
       <span>Distribuido: <b>${money(p.invested)}</b></span>
@@ -789,10 +799,11 @@ function renderSuggestResult(data) {
       <span>Cartera resultante: <b>${money(p.resultingTotal)}</b></span>
     </div>
     ${rows.length ? `<table><thead><tr>
-      <th>Ticker</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
+      <th>Ticker</th><th>Guía</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr>
         <td>${r.preferida ? '★' : '🔎'} ${tb(r.ticker)} <span class="muted-sm">${r.type}${r.preferida ? '' : ' · nuevo'}</span>${r.preferida ? '' : ` <button class="btn" style="padding:2px 7px;font-size:12px" onclick='addSuggested(${JSON.stringify(r.ticker)},${r.ratio},${r.ratioKnown},${JSON.stringify(r.name || '')})'>+ Agregar</button>`}${techBadges(r.tech)}</td>
+        <td>${senalBadge(gSenal(r.ticker))}</td>
         <td class="num"><b>${r.cedears}</b></td>
         <td class="num"><b>${r.pctOfNew}%</b></td>
         <td class="num hide-sm">${money(r.cedearPrice)}</td>
