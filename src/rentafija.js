@@ -231,8 +231,18 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
     }
   }
 
-  let comprasUsd = 0, ventasUsd = 0, valorActual = 0, costoTenencia = 0, rentaCobrada = 0, sinPrecio = 0, escalaRara = 0;
+  let comprasUsd = 0, ventasUsd = 0, valorActual = 0, costoTenencia = 0, rentaCobrada = 0, sinPrecio = 0, escalaRara = 0, amortReturned = 0;
   const rows = [];
+
+  // Amortización de capital ya pagada por ticker (del cronograma, fecha pasada).
+  // En par ≈ 1 USD/nominal, así que el importe ≈ nominales devueltos.
+  const amortPastByTicker = {};
+  for (const p of payments) {
+    if (String(p.fecha) <= hoy) {
+      const tk = String(p.ticker || '').toUpperCase().trim();
+      amortPastByTicker[tk] = (amortPastByTicker[tk] || 0) + (Number(p.amortizacion) || 0);
+    }
+  }
 
   for (const tk of Object.keys(byTicker)) {
     const arr = byTicker[tk];
@@ -250,8 +260,11 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
 
     const paid = paidByTicker[tk] || { renta: 0, amort: 0 };
     rentaCobrada += paid.renta;
+    const amortPast = amortPastByTicker[tk] || 0;
+    amortReturned += amortPast;
+    const vnVigente = Math.max(0, vn - amortPast); // capital devuelto baja el VN
 
-    if (vn <= 0) continue; // posición cerrada: no aparece en tenencias
+    if (vnVigente <= 0) continue; // sin nominales vigentes (vendido/amortizado)
 
     // Antigüedad de la posición (desde la primera compra) para anualizar.
     const buyDates = buys.map((x) => x.fecha).filter(Boolean)
@@ -269,11 +282,11 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
     const raw = pr && Number(pr.price) > 0 ? Number(pr.price) : null;
     const price = raw != null && raw < 5 ? raw : null;
     const priceOffScale = raw != null && raw >= 5;
-    const invertido = r2(avgCostUsd * vn);
+    const invertido = r2(avgCostUsd * vnVigente);
     // Sin precio de mercado: se valúa al costo (ganancia 0) para no distorsionar
     // el total; el UI marca la posición como "sin precio" para que la cargues.
-    const valor = price != null ? r2(vn * price) : invertido;
-    const ganCap = price != null ? r2(vn * (price - avgCostUsd)) : 0;
+    const valor = price != null ? r2(vnVigente * price) : invertido;
+    const ganCap = price != null ? r2(vnVigente * (price - avgCostUsd)) : 0;
 
     costoTenencia += invertido;
     valorActual += valor;
@@ -287,15 +300,17 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
     // y avisamos.
     const cf = cashflowsByTicker[tk] || [];
     const sumCf = cf.reduce((a, c) => a + (Number(c.monto) || 0), 0);
-    let tir = price != null ? tirOf({ price, vn, cashflows: cf, today: hoy }) : null;
+    let tir = price != null ? tirOf({ price, vn: vnVigente, cashflows: cf, today: hoy }) : null;
     let tirNota = null;
-    if (price != null && cf.length && sumCf < price * vn * 0.98) { tirNota = 'cronograma incompleto (¿falta amortización?)'; tir = null; }
+    if (price != null && cf.length && sumCf < price * vnVigente * 0.98) { tirNota = 'cronograma incompleto (¿falta amortización?)'; tir = null; }
 
     rows.push({
       ticker: tk,
       clase: arr[0].clase,
       emisor: arr[0].emisor || '',
-      vn: r2(vn),
+      vn: r2(vnVigente),
+      vnOriginal: r2(vn),
+      amortizado: r2(amortPast),
       precioCompra: r4(avgCostUsd),
       precioActual: price != null ? r4(price) : null,
       precioSource: pr ? pr.source : null,
@@ -319,7 +334,7 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
 
   rows.sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0));
 
-  const capitalAportado = r2(comprasUsd - ventasUsd - rentaCobrada);
+  const capitalAportado = r2(comprasUsd - ventasUsd - rentaCobrada - amortReturned);
   const gananciaCapital = r2(valorActual - costoTenencia);
   const gananciaTotal = r2(valorActual - capitalAportado);
   const rendimientoPct = capitalAportado > 0 ? r2(gananciaTotal / capitalAportado * 100) : null;
@@ -332,6 +347,7 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       costoTenencia: r2(costoTenencia),
       gananciaCapital,
       rentaCobrada: r2(rentaCobrada),
+      amortCobrada: r2(amortReturned),
       gananciaTotal,
       rendimientoPct,
       posiciones: rows.length,

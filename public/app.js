@@ -1305,7 +1305,7 @@ function rfRenderFija(el) {
     ['Ticker', 'Nominales', 'Compra', 'Actual', 'Valor', 'Gan. capital', 'Renta cobr.'],
     (d.rows || []).map(r => [
       `${tb(r.ticker)} <span class="muted-sm">${esc(r.clase)}</span>`,
-      nf(r.vn),
+      `${nf(r.vn)}${r.amortizado > 0 ? ` <span class="muted-sm" title="VN original ${nf(r.vnOriginal)}, amortizado ${nf(r.amortizado)}">(amort.)</span>` : ''}`,
       r.precioCompra != null ? round2(r.precioCompra) : '—',
       r.precioActual != null
         ? `${round2(r.precioActual)} <span title="${r.precioSource === 'manual' ? 'precio manual' : 'precio automático'}">${r.precioSource === 'manual' ? '✏️' : '📶'}</span> <a href="#" class="muted-sm rf-editpx" data-tk="${esc(r.ticker)}" data-px="${r.precioActual}">editar</a>`
