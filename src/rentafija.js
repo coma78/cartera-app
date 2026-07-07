@@ -178,6 +178,14 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       nextByTicker[tk] = { fecha: String(p.fecha), renta, amort, total: Number(p.total) || renta + amort };
     }
   }
+  // Vencimiento por ticker = última fecha del cronograma de esa especie.
+  const vtoByTicker = {};
+  for (const p of payments) {
+    const tk = String(p.ticker || '').toUpperCase().trim();
+    const f = String(p.fecha);
+    if (!vtoByTicker[tk] || f > vtoByTicker[tk]) vtoByTicker[tk] = f;
+  }
+
   // Renta cobrada por ticker: de "movimientos" (income) si hay; si no, del
   // cronograma con fecha pasada (fallback).
   const paidByTicker = {};
@@ -262,6 +270,10 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       proximoPago: nextByTicker[tk] || null,
       primeraCompra,
       aniosTenido: aniosTenido != null ? r2(aniosTenido) : null,
+      diasTenido: primeraCompra ? Math.max(0, Math.round((Date.parse(hoy) - Date.parse(primeraCompra)) / 86400000)) : null,
+      vencimiento: vtoByTicker[tk] || null,
+      diasVto: vtoByTicker[tk] ? Math.round((Date.parse(vtoByTicker[tk]) - Date.parse(hoy)) / 86400000) : null,
+      aniosVto: vtoByTicker[tk] ? r2(Math.round((Date.parse(vtoByTicker[tk]) - Date.parse(hoy)) / 86400000) / 365.25) : null,
     });
   }
 

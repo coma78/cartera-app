@@ -1489,15 +1489,17 @@ async function renderRfAnalisis() {
   </div>`;
   const totVal = rows.reduce((a, r) => a + (r.valorActual || 0), 0);
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Detalle por especie</h2></div>`;
-  html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada', 'Años'],
+  const diasAnios = (d, a) => d == null ? '—' : `${nf(d)} Días <span class="muted-sm">(${(Number(a) || 0).toFixed(2).replace('.', ',')} Años)</span>`;
+  html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada', 'Tenencia', 'Al vto.'],
     [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0)).map(r => [
       tb(r.ticker),
       money(r.valorActual),
       totVal > 0 ? round2(r.valorActual / totVal * 100) + '%' : '—',
       r.ganCapital != null ? `<span class="${cls(r.ganCapital)}">${money(r.ganCapital)}${r.ganCapitalPct != null ? ' · ' + rfPct(r.ganCapitalPct) : ''}</span>` : '—',
       r.rentaCobrada > 0 ? `<span class="pos">${money(r.rentaCobrada)}</span>` : '—',
-      r.aniosTenido != null ? round2(r.aniosTenido) : '—',
-    ]), [1, 0, 0, 0, 0, 0]);
+      diasAnios(r.diasTenido, r.aniosTenido),
+      diasAnios(r.diasVto, r.aniosVto),
+    ]), [1, 0, 0, 0, 0, 0, 0]);
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Evolución de precio</h2>
     <select id="rfa-evo-ticker" style="width:auto"></select></div>
     <div class="muted-sm" style="margin:-4px 0 6px">Se arma con el snapshot diario de data912 (USD por nominal).</div>
