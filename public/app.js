@@ -1929,13 +1929,17 @@ function renderRfSugResult() {
   html += `<div class="panel-head" style="margin-top:4px"><h2 style="font-size:15px">Para comprar (según tu guía)</h2><span class="muted-sm">${comprar.length}</span></div>`;
   if (!s.guideCount) html += `<div class="muted-sm" style="margin-bottom:10px">Compartí tu guía (link público) para ver las recomendadas a comprar.</div>`;
   else if (!comprar.length) html += `<div class="muted-sm" style="margin-bottom:10px">Ninguna "Comprar" con esos filtros.</div>`;
-  else html += rfTable(monto > 0 ? ['Ticker', 'Rating', 'Mín. nom.', 'Nominales', '¿Mes flojo?'] : ['Ticker', 'Rating', 'Mín. nom.', 'Estado', '¿Mes flojo?'],
+  else html += rfTable(monto > 0 ? ['Ticker', 'Rating', 'Mín. nom.', 'Nominales', 'Paga en'] : ['Ticker', 'Rating', 'Mín. nom.', 'Estado', 'Paga en'],
     comprar.map(x => {
       const estado = x.held ? '<span class="pos">la tenés</span>' : '<span class="muted-sm">nueva</span>';
       const nomCell = x.nominales != null ? `${nf(x.nominales)}${x.alcanzaMinimo === false ? ' <span class="neg">(&lt; mín)</span>' : ''}` : (x.precio == null ? '<span class="muted-sm">sin precio</span>' : '—');
-      const mes = (x.llenaMesFlojo && x.llenaMesFlojo.length) ? `<span class="pos">${x.llenaMesFlojo.map(mesLabel).join(', ')}</span>` : '—';
-      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, mes];
-    }), [1, 0, 0, 0, 0]);
+      const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      const lowMM = new Set((x.llenaMesFlojo || []).map(ym => ym.slice(5, 7)));
+      const paga = (x.mesesPago && x.mesesPago.length)
+        ? x.mesesPago.map(mm => lowMM.has(mm) ? `<span class="pos">${MES[+mm - 1]}</span>` : MES[+mm - 1]).join(', ')
+        : '<span class="muted-sm">sin cronograma</span>';
+      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, paga];
+    }), [1, 0, 0, 0, 1]);
 
   // --- Secundario: emparejar renta por mes ---
   html += `<div class="panel-head" style="margin-top:18px"><h2 style="font-size:15px">Emparejar tu renta por mes</h2><span class="muted-sm">opcional</span></div>

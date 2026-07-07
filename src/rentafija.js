@@ -332,11 +332,14 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], price
   const catByTk = {};
   for (const c of catalog) catByTk[String(c.ticker).toUpperCase().trim()] = c;
   const curMonth = hoy.slice(0, 7);
-  const payMonths = {};
+  const payMonths = {};       // ym futuros (para detectar valles)
+  const payMonthNums = {};    // meses del año en que paga (patrón recurrente)
   for (const p of payments) {
+    const tk = String(p.ticker).toUpperCase().trim();
     const ym = String(p.fecha).slice(0, 7);
+    if (Number(p.renta) > 0) (payMonthNums[tk] ??= new Set()).add(String(p.fecha).slice(5, 7));
     if (ym < curMonth) continue;
-    (payMonths[String(p.ticker).toUpperCase().trim()] ??= new Set()).add(ym);
+    (payMonths[tk] ??= new Set()).add(ym);
   }
   const g = (tk) => guide[String(tk).toUpperCase().trim()] || null;
   const rank = { Comprar: 0, Mantener: 1, Vender: 3 };
@@ -351,6 +354,7 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], price
       clase: c?.clase || (rows.find((r) => r.ticker === tk)?.clase) || '',
       senal: gg ? gg.senal : null, perfil: gg ? gg.perfil : null, enGuia: !!gg,
       precio, nominales, alcanzaMinimo: nominales == null ? null : (nominales >= minN),
+      mesesPago: payMonthNums[tk] ? [...payMonthNums[tk]].sort() : [],
     };
   };
   const avg = monthly.length ? monthly.reduce((a, m) => a + m.total, 0) / monthly.length : 0;
