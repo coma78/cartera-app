@@ -1397,8 +1397,8 @@ function rfMonthlyChart(id, monthly) {
     data: { labels, datasets: [{ data, backgroundColor: data.map(v => v >= max ? '#0f6e56' : '#1D9E75'), borderRadius: 4 }] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => (CONFIG.currency || 'USD') + ' ' + Number(x.raw).toLocaleString('es-AR') } } },
-      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => HIDE_MONEY ? '••••' : (CONFIG.currency || 'USD') + ' ' + Number(x.raw).toLocaleString('es-AR') } } },
+      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: (v) => HIDE_MONEY ? '' : (v >= 1000 ? (v / 1000) + 'k' : v) } } },
     },
   });
 }
@@ -1778,7 +1778,14 @@ async function renderRfCronograma() {
       <button class="btn primary" onclick="document.getElementById('rf-file-crono').click()">🗓️ Importar cronograma</button></div>`;
     el.innerHTML = html; return;
   }
-  if ((d.monthly || []).length) {
+  const mm = d.monthly || [];
+  const sumRenta = mm.reduce((a, x) => a + (Number(x.renta) || 0), 0);
+  const sumAmort = mm.reduce((a, x) => a + (Number(x.amort) || 0), 0);
+  html += `<div class="cards" style="margin-bottom:14px">
+      <div class="card"><div class="card-label">Renta promedio mensual</div><div class="card-value">${money(sumRenta / 12)}</div><div class="muted-sm">próximos 12 meses</div></div>
+      <div class="card"><div class="card-label">Renta acumulada (12 meses)</div><div class="card-value pos">${money(sumRenta)}</div>${sumAmort > 0 ? `<div class="muted-sm">+ amortizaciones ${money(sumAmort)}</div>` : ''}</div>
+    </div>`;
+  if (mm.length) {
     html += `<div class="panel-head"><h2 style="font-size:15px">Renta a cobrar por mes</h2></div>
       <div class="muted-sm" style="margin:-4px 0 6px">Cupones y amortizaciones proyectados (${CONFIG.currency || 'USD'})</div>
       <div class="chart-wrap" style="height:200px"><canvas id="rf-crono-monthly"></canvas></div>`;
