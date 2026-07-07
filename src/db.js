@@ -121,6 +121,7 @@ export async function migrate() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await query('ALTER TABLE rf_prices ADD COLUMN IF NOT EXISTS volumen NUMERIC;');
   // Histórico de precios (snapshot diario) para la evolución de cada ON/bono.
   await query(`
     CREATE TABLE IF NOT EXISTS rf_price_history (
@@ -443,10 +444,20 @@ export async function deleteAllRfTrades() {
 }
 
 // ---------- Renta fija: precios ----------
+function liqTier(v) {
+  if (v == null) return null;
+  if (v >= 40) return 'Alta';
+  if (v >= 8) return 'Media';
+  if (v >= 1) return 'Baja';
+  return 'Nula';
+}
 export async function listRfPrices() {
-  const { rows } = await query('SELECT ticker, price, source, updated_at FROM rf_prices');
+  const { rows } = await query('SELECT ticker, price, source, volumen, updated_at FROM rf_prices');
   const map = {};
-  for (const r of rows) map[r.ticker] = { price: r.price != null ? Number(r.price) : null, source: r.source, updated_at: r.updated_at };
+  for (const r of rows) {
+    const vol = r.volumen != null ? Number(r.volumen) : null;
+    map[r.ticker] = { price: r.price != null ? Number(r.price) : null, source: r.source, volumen: vol, liquidez: liqTier(vol), updated_at: r.updated_at };
+  }
   return map;
 }
 // Borra precios cacheados. Por defecto sólo los automáticos (deja los manuales).
@@ -490,7 +501,8 @@ export async function listRfPriceHistory(ticker = null) {
 }
 
 // Precios automáticos (data912): no piso los precios cargados a mano.
-export async function saveRfPricesAuto(map = {}) {
+// volumes: mapa ticker -> operaciones/volumen (para liquidez).
+export async function saveRfPricesAuto(map = {}, volumes = {}) {
   const { rows } = await query(`SELECT ticker FROM rf_prices WHERE source = 'manual'`);
   const manual = new Set(rows.map((r) => r.ticker));
   let n = 0;
@@ -498,8 +510,19 @@ export async function saveRfPricesAuto(map = {}) {
     if (manual.has(tk)) continue;
     const price = Number(map[tk]);
     if (!(price > 0)) continue;
-    await setRfPrice(tk, price, 'auto');
+    const vol = volumes[tk] != null ? Number(volumes[tk]) : null;
+    await query(
+      `INSERT INTO rf_prices (ticker, price, source, volumen, updated_at) VALUES ($1,$2,'auto',$3, now())
+       ON CONFLICT (ticker) DO UPDATE SET price = EXCLUDED.price, source = 'auto', volumen = EXCLUDED.volumen, updated_at = now()`,
+      [tk, price, vol]
+    );
     n++;
+  }
+  // Volumen (dato de mercado) también para los de precio manual.
+  for (const tk of Object.keys(volumes)) {
+    if (!manual.has(tk)) continue;
+    const vol = Number(volumes[tk]);
+    if (vol >= 0) await query('UPDATE rf_prices SET volumen = $2 WHERE ticker = $1', [tk, vol]);
   }
   return n;
 }

@@ -145,6 +145,31 @@ function ymd(v) {
   return String(v).slice(0, 10);
 }
 
+// TIR (tasa interna de retorno anual) por bisección: resuelve la tasa que hace
+// que el valor presente de los flujos futuros iguale el precio de hoy.
+// cashflows: [{ fecha, monto }] futuros (renta + amortización).
+export function tirOf({ price, vn, cashflows = [], today }) {
+  if (!(price > 0) || !(vn > 0) || !cashflows.length) return null;
+  const t0 = Date.parse(today);
+  const npv = (r) => {
+    let s = -price * vn;
+    for (const c of cashflows) {
+      const yrs = (Date.parse(c.fecha) - t0) / (365.25 * 86400000);
+      if (yrs <= 0) continue;
+      s += c.monto / Math.pow(1 + r, yrs);
+    }
+    return s;
+  };
+  let lo = -0.9, hi = 3, flo = npv(lo), fhi = npv(hi);
+  if (!(flo * fhi < 0)) return null; // sin raíz en el rango
+  for (let i = 0; i < 90; i++) {
+    const mid = (lo + hi) / 2, fm = npv(mid);
+    if (Math.abs(fm) < 1e-7) return Math.round(mid * 10000) / 100;
+    if (flo * fm < 0) { hi = mid; } else { lo = mid; flo = fm; }
+  }
+  return Math.round(((lo + hi) / 2) * 10000) / 100;
+}
+
 // ---------- Cómputo de la cartera de renta fija ----------
 // trades: [{ ticker, clase, emisor, side('COMPRA'|'VENTA'), cantidad, precio_usd, neto_usd, fecha }]
 // prices: { TICKER: { price, source, updated_at } }  (precio actual en USD par)
@@ -178,12 +203,13 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       nextByTicker[tk] = { fecha: String(p.fecha), renta, amort, total: Number(p.total) || renta + amort };
     }
   }
-  // Vencimiento por ticker = última fecha del cronograma de esa especie.
-  const vtoByTicker = {};
+  // Vencimiento + flujos futuros por ticker (para TIR).
+  const vtoByTicker = {}, cashflowsByTicker = {};
   for (const p of payments) {
     const tk = String(p.ticker || '').toUpperCase().trim();
     const f = String(p.fecha);
     if (!vtoByTicker[tk] || f > vtoByTicker[tk]) vtoByTicker[tk] = f;
+    if (f > hoy) (cashflowsByTicker[tk] ??= []).push({ fecha: f, monto: Number(p.total) || (Number(p.renta) || 0) + (Number(p.amortizacion) || 0) });
   }
 
   // Renta cobrada por ticker: de "movimientos" (income) si hay; si no, del
@@ -274,6 +300,9 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       vencimiento: vtoByTicker[tk] || null,
       diasVto: vtoByTicker[tk] ? Math.round((Date.parse(vtoByTicker[tk]) - Date.parse(hoy)) / 86400000) : null,
       aniosVto: vtoByTicker[tk] ? r2(Math.round((Date.parse(vtoByTicker[tk]) - Date.parse(hoy)) / 86400000) / 365.25) : null,
+      tir: price != null ? tirOf({ price, vn, cashflows: cashflowsByTicker[tk] || [], today: hoy }) : null,
+      liquidez: pr && pr.liquidez ? pr.liquidez : null,
+      volumen: pr && pr.volumen != null ? pr.volumen : null,
     });
   }
 
@@ -343,18 +372,22 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], price
   }
   const g = (tk) => guide[String(tk).toUpperCase().trim()] || null;
   const rank = { Comprar: 0, Mantener: 1, Vender: 3 };
+  const rowByTk = {};
+  for (const r of rows) rowByTk[r.ticker] = r;
   const enrich = (tk) => {
-    const c = catByTk[tk], gg = g(tk);
+    const c = catByTk[tk], gg = g(tk), row = rowByTk[tk];
     const precio = prices[tk] && Number(prices[tk].price) > 0 ? Number(prices[tk].price) : null;
     const minN = c ? Number(c.min_nominales) || 0 : 0;
     const nominales = (monto > 0 && precio) ? Math.floor(monto / precio) : null;
     return {
       ticker: tk, held: heldSet.has(tk), rating: c?.rating || '', minNominales: minN,
-      emisor: c?.emisor || (rows.find((r) => r.ticker === tk)?.emisor) || '',
-      clase: c?.clase || (rows.find((r) => r.ticker === tk)?.clase) || '',
+      emisor: c?.emisor || row?.emisor || '',
+      clase: c?.clase || row?.clase || '',
       senal: gg ? gg.senal : null, perfil: gg ? gg.perfil : null, enGuia: !!gg,
       precio, nominales, alcanzaMinimo: nominales == null ? null : (nominales >= minN),
       mesesPago: payMonthNums[tk] ? [...payMonthNums[tk]].sort() : [],
+      tir: row ? row.tir ?? null : null,
+      liquidez: prices[tk] ? prices[tk].liquidez || null : null,
     };
   };
   const avg = monthly.length ? monthly.reduce((a, m) => a + m.total, 0) / monthly.length : 0;

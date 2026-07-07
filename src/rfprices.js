@@ -64,24 +64,26 @@ export async function fetchRfPrices(tickers = [], { mepFallback = null } = {}) {
   const divisor = Number(process.env.RF_PRICE_DIVISOR) > 0 ? Number(process.env.RF_PRICE_DIVISOR) : 100;
 
   const [{ mep, source: mepSource }, ...lists] = await Promise.all([getMep(mepFallback), ...ENDPOINTS.map(fetchOne)]);
-  const prices = {};
+  const prices = {}, volumenes = {};
   let matched = 0;
-  if (mep > 0) {
-    for (const list of lists) {
-      for (const o of list) {
-        const sym = pickSymbol(o);
-        if (!sym) continue;
-        const hit = want.has(sym) ? sym : [...want].find((w) => sym === w || sym.startsWith(w));
-        if (!hit || prices[hit]) continue;
+  for (const list of lists) {
+    for (const o of list) {
+      const sym = pickSymbol(o);
+      if (!sym) continue;
+      const hit = want.has(sym) ? sym : [...want].find((w) => sym === w || sym.startsWith(w));
+      if (!hit) continue;
+      // liquidez: cantidad de operaciones del día (o volumen si no hay).
+      if (volumenes[hit] == null) {
+        const ops = Number(o.q_op ?? o.q_operaciones ?? o.trades);
+        volumenes[hit] = ops >= 0 ? ops : (Number(o.v || o.volume) || 0);
+      }
+      if (mep > 0 && !prices[hit]) {
         const rawPesos = pickPrice(o);
-        if (rawPesos > 0) {
-          prices[hit] = Math.round((rawPesos / divisor / mep) * 10000) / 10000;
-          matched++;
-        }
+        if (rawPesos > 0) { prices[hit] = Math.round((rawPesos / divisor / mep) * 10000) / 10000; matched++; }
       }
     }
   }
-  return { prices, mep, mepSource, divisor, matched };
+  return { prices, volumenes, mep, mepSource, divisor, matched };
 }
 
 export function rfPricesEnabled() { return true; }

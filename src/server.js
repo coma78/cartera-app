@@ -418,7 +418,7 @@ app.post('/api/rf/import-boletos', wrap(async (req, res) => {
   try {
     const held = [...new Set(enriched.map((t) => t.ticker))];
     const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(enriched) });
-    priced = await saveRfPricesAuto(r.prices);
+    priced = await saveRfPricesAuto(r.prices, r.volumenes);
     mep = r.mep;
   } catch { /* noop */ }
   const rf = await computeRf();
@@ -514,7 +514,7 @@ async function updateRfPrices() {
   const held = [...new Set([...trades.map((t) => t.ticker), ...cat.map((c) => c.ticker)])];
   if (!held.length) return { updated: 0, snapped: 0, msg: 'No hay tenencias ni catálogo de renta fija' };
   const r = await fetchRfPrices(held, { mepFallback: latestImpliedMep(trades) });
-  const updated = await saveRfPricesAuto(r.prices);
+  const updated = await saveRfPricesAuto(r.prices, r.volumenes);
   const eff = await listRfPrices();
   const map = {};
   for (const tk of Object.keys(eff)) if (eff[tk].price > 0) map[tk] = eff[tk].price;
