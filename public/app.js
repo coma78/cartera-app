@@ -320,9 +320,9 @@ function renderWinLoss() {
   const usd = WL_MODE === 'usd';
   const key = usd ? 'plAbs' : 'plPct';
   const rows = consolidate(HOLDINGS).filter(r => r[key] != null);
-  const sorted = [...rows].sort((a, b) => b[key] - a[key]);
-  const top = sorted.slice(0, 5), bottom = sorted.slice(-5).filter(x => !top.includes(x));
-  const sel = [...top, ...bottom];
+  const sel = [...rows].sort((a, b) => b[key] - a[key]);
+  const cv = document.getElementById('chart-wl');
+  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(240, sel.length * 24) + 'px';
   drawChart('wl', 'chart-wl', {
     type: 'bar',
     data: {
@@ -335,7 +335,10 @@ function renderWinLoss() {
         legend: { display: false },
         tooltip: { callbacks: { label: (ctx) => usd ? money(ctx.parsed.x) : ctx.parsed.x + '%' } },
       },
-      scales: { x: { ticks: { display: usd ? !HIDE_MONEY : true, callback: v => usd ? v : v + '%' } } },
+      scales: {
+        x: { ticks: { display: usd ? !HIDE_MONEY : true, callback: v => usd ? v : v + '%' } },
+        y: { ticks: { autoSkip: false, font: { size: 11 } } },
+      },
     },
   });
 }
