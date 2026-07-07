@@ -1468,7 +1468,7 @@ async function renderRfAnalisis() {
     { label: 'Posiciones', value: String(t.posiciones || rows.length) },
   ]);
   html += `<div class="grid2" style="margin-top:16px">
-    <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head"><h2 style="font-size:15px">Peso por especie</h2></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-dist"></canvas></div></div>
+    <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head"><h2 style="font-size:15px">Valor por especie</h2><span class="muted-sm">USD · % en el tooltip</span></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-dist"></canvas></div></div>
     <div class="panel" style="box-shadow:none;border:1px solid var(--line)">
       <div class="panel-head" style="flex-wrap:wrap;gap:6px"><h2 style="font-size:15px">Ganancia (%)</h2>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1505,7 +1505,7 @@ async function renderRfAnalisis() {
     <div class="muted-sm" style="margin:-4px 0 6px">Se arma con el snapshot diario de data912 (USD por nominal).</div>
     <div class="chart-wrap" style="height:220px"><canvas id="rfa-evo"></canvas></div>`;
   el.innerHTML = html;
-  rfDoughnutBy('rfa-dist', rows.map(r => r.ticker), rows.map(r => round2((r.valorActual || 0) / (totVal || 1) * 100)));
+  rfBarValor('rfa-dist', rows);
   RF_AN_ROWS = rows;
   drawRfGain();
   el.querySelectorAll('.seg-btn[data-rfgain]').forEach(b => b.onclick = () => {
@@ -1539,6 +1539,24 @@ async function drawRfEvo(ticker) {
     type: 'line',
     data: { labels: hist.map(h => fmtDate(h.fecha)), datasets: [{ data: hist.map(h => h.price), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.12)', fill: true, tension: 0.2, pointRadius: 0 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => ticker + ': ' + x.raw } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: false } } },
+  });
+}
+function rfBarValor(id, rows) {
+  const cv = document.getElementById(id); if (!cv || typeof Chart === 'undefined') return;
+  if (CHARTS[id]) CHARTS[id].destroy();
+  const sorted = [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0));
+  const tot = sorted.reduce((a, r) => a + (r.valorActual || 0), 0);
+  const labels = sorted.map(r => r.ticker);
+  const data = sorted.map(r => round2(r.valorActual || 0));
+  if (cv.parentElement) cv.parentElement.style.height = Math.max(220, sorted.length * 26) + 'px';
+  CHARTS[id] = new Chart(cv, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: '#3b82f6', borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${money(x.raw)} · ${tot > 0 ? round2(x.raw / tot * 100) : 0}%` } } },
+      scales: { x: { ticks: { callback: (v) => HIDE_MONEY ? '' : (v >= 1000 ? (v / 1000) + 'k' : v) } }, y: { ticks: { autoSkip: false, font: { size: 11 } } } },
+    },
   });
 }
 function rfDoughnutBy(id, labels, data) {
