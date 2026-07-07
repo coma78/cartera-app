@@ -1165,6 +1165,7 @@ function bindEvents() {
   document.querySelectorAll('.nav-item').forEach(n => n.onclick = () => showSection(n.dataset.sec));
   document.getElementById('hamburger').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('btn-eye').onclick = toggleMoney;
+  document.getElementById('btn-search').onclick = openCmdK;
   document.getElementById('sg-go').onclick = computeSuggest;
   document.getElementById('sg-all').onclick = toggleAllTech;
   document.getElementById('sg-tickers').addEventListener('change', (e) => { if (e.target.classList.contains('sg-tk')) saveSuggestTickers(); });
@@ -1228,15 +1229,139 @@ function bindEvents() {
   document.getElementById('rfs-go').onclick = renderRfSug;
   document.getElementById('rfs-monto').addEventListener('change', renderRfSug);
   document.getElementById('btn-run').onclick = async function () {
-    this.disabled = true; this.textContent = 'Generando…';
+    this.disabled = true; this.innerHTML = ic('loader') + ' Generando…';
     try {
       const r = await api('/report/run', { method: 'POST', body: JSON.stringify({ send: true }) });
       toast(r.emailResult.sent ? 'Reporte generado y enviado' : 'Reporte generado (mail: ' + r.emailResult.reason + ')');
       await loadReports(); if (CURRENT_SEC === 'reportes' || CURRENT_SEC === 'resumen') renderSection(CURRENT_SEC);
     } catch (e) { toast(e.message); }
-    this.disabled = false; this.textContent = 'Generar reporte ahora';
+    this.disabled = false; this.innerHTML = ic('refresh-cw') + ' Generar reporte ahora'; refreshIcons();
   };
+  setupTableSort();
+  setTopbarHeight();
+  window.addEventListener('resize', setTopbarHeight);
 }
+
+// Fija --topbar-h para que los encabezados sticky se apoyen bajo la barra.
+function setTopbarHeight() {
+  const tb = document.querySelector('.topbar');
+  if (tb) document.documentElement.style.setProperty('--topbar-h', tb.offsetHeight + 'px');
+}
+
+// ---------- Orden por columna (delegado, para todas las tablas) ----------
+function cellNum(td) {
+  if (!td) return null;
+  const raw = (td.innerText || td.textContent || '').trim();
+  if (!raw) return null;
+  let s = raw.replace(/[^0-9,.\-]/g, '');
+  if (s === '' || s === '-' || s === '.' || s === ',') return null;
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.'); // 1.234,56
+  else if (s.includes(',')) s = s.replace(',', '.'); // 1234,56
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function setupTableSort() {
+  document.body.addEventListener('click', (e) => {
+    const th = e.target.closest('thead th');
+    if (!th || !(th.innerText || th.textContent || '').trim()) return;
+    const table = th.closest('table'); if (!table || !table.tBodies.length) return;
+    const idx = [...th.parentElement.children].indexOf(th);
+    const asc = th.getAttribute('data-sort') !== 'asc';
+    [...th.parentElement.children].forEach(h => h.removeAttribute('data-sort'));
+    th.setAttribute('data-sort', asc ? 'asc' : 'desc');
+    const tbody = table.tBodies[0];
+    const rows = [...tbody.rows].filter(r => r.cells.length > idx);
+    rows.sort((ra, rb) => {
+      const na = cellNum(ra.cells[idx]), nb = cellNum(rb.cells[idx]);
+      let cmp;
+      if (na != null && nb != null) cmp = na - nb;
+      else if (na != null) cmp = 1;
+      else if (nb != null) cmp = -1;
+      else cmp = (ra.cells[idx]?.innerText || '').trim().localeCompare((rb.cells[idx]?.innerText || '').trim(), 'es', { numeric: true });
+      return asc ? cmp : -cmp;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  });
+}
+
+// ---------- Buscador rápido (Cmd/Ctrl + K) ----------
+let CMDK_ITEMS = [], CMDK_SEL = 0;
+function cmdkSections() {
+  return Object.entries(SEC_TITLES).map(([sec, title]) => ({
+    title, sub: 'Sección', icon: 'panel-left', run: () => showSection(sec),
+  }));
+}
+function cmdkTickers() {
+  const out = [], seen = new Set();
+  const add = (tk, sub, sec) => {
+    const k = tk + '|' + sec; if (!tk || seen.has(k)) return; seen.add(k);
+    out.push({ title: tk, sub, icon: 'search', run: () => showSection(sec) });
+  };
+  (Array.isArray(CATALOG) ? CATALOG : []).forEach(c => add(c.ticker, 'Renta variable', 'cartera'));
+  (Array.isArray(RF_CAT) ? RF_CAT : []).forEach(c => add(c.ticker, 'Renta fija', 'rentafija'));
+  (Array.isArray(RF_DATA?.rows) ? RF_DATA.rows : []).forEach(r => add(r.ticker, 'Renta fija', 'rentafija'));
+  return out;
+}
+function ensureCmdK() {
+  if (document.getElementById('cmdk')) return;
+  const el = document.createElement('div');
+  el.id = 'cmdk'; el.className = 'cmdk hidden';
+  el.innerHTML = `<div class="cmdk-box">
+    <div class="cmdk-input">${ic('search')}<input id="cmdk-q" type="text" placeholder="Buscar sección o ticker…" autocomplete="off"></div>
+    <div class="cmdk-list" id="cmdk-list"></div>
+  </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', (e) => { if (e.target === el) closeCmdK(); });
+  document.getElementById('cmdk-q').addEventListener('input', renderCmdK);
+  document.getElementById('cmdk-q').addEventListener('keydown', cmdkNav);
+  refreshIcons();
+}
+function openCmdK() {
+  ensureCmdK();
+  document.getElementById('cmdk').classList.remove('hidden');
+  const q = document.getElementById('cmdk-q'); q.value = ''; CMDK_SEL = 0;
+  renderCmdK(); q.focus();
+}
+function closeCmdK() { const el = document.getElementById('cmdk'); if (el) el.classList.add('hidden'); }
+function renderCmdK() {
+  const q = (document.getElementById('cmdk-q').value || '').toLowerCase().trim();
+  const all = [...cmdkSections(), ...cmdkTickers()];
+  CMDK_ITEMS = (q ? all.filter(i => (i.title + ' ' + i.sub).toLowerCase().includes(q)) : all).slice(0, 40);
+  if (CMDK_SEL >= CMDK_ITEMS.length) CMDK_SEL = 0;
+  const list = document.getElementById('cmdk-list');
+  if (!CMDK_ITEMS.length) { list.innerHTML = '<div class="cmdk-empty">Sin resultados</div>'; return; }
+  list.innerHTML = CMDK_ITEMS.map((i, n) => `<div class="cmdk-item ${n === CMDK_SEL ? 'active' : ''}" data-n="${n}">
+    <span class="ci-ic">${ic(i.icon)}</span><span>${esc(i.title)}</span><span class="ci-sub">${esc(i.sub)}</span></div>`).join('');
+  list.querySelectorAll('.cmdk-item').forEach(it => {
+    it.onclick = () => runCmdK(Number(it.dataset.n));
+    it.onmousemove = () => { CMDK_SEL = Number(it.dataset.n); highlightCmdK(); };
+  });
+  refreshIcons();
+}
+function highlightCmdK() {
+  document.querySelectorAll('.cmdk-item').forEach((it, n) => it.classList.toggle('active', n === CMDK_SEL));
+}
+function runCmdK(n) {
+  const it = CMDK_ITEMS[n]; if (!it) return;
+  closeCmdK(); it.run();
+}
+function cmdkNav(e) {
+  if (e.key === 'ArrowDown') { e.preventDefault(); CMDK_SEL = Math.min(CMDK_SEL + 1, CMDK_ITEMS.length - 1); highlightCmdK(); scrollCmdK(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); CMDK_SEL = Math.max(CMDK_SEL - 1, 0); highlightCmdK(); scrollCmdK(); }
+  else if (e.key === 'Enter') { e.preventDefault(); runCmdK(CMDK_SEL); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeCmdK(); }
+}
+function scrollCmdK() {
+  const act = document.querySelector('.cmdk-item.active');
+  if (act) act.scrollIntoView({ block: 'nearest' });
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    const el = document.getElementById('cmdk');
+    if (el && !el.classList.contains('hidden')) closeCmdK(); else openCmdK();
+  }
+});
 
 // ==================== RENTA FIJA ====================
 const rfPct = (n) => n === null || n === undefined ? '—' : (n > 0 ? '+' : '') + round2(n) + '%';
