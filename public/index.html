@@ -50,10 +50,10 @@
     <!-- Contenido -->
     <main class="content">
       <header class="topbar">
-        <button class="hamburger" id="hamburger" aria-label="Menú">☰</button>
+        <button class="hamburger" id="hamburger" aria-label="Menú"><i data-lucide="menu"></i></button>
         <h1 id="sec-title">Resumen</h1>
-        <button id="btn-eye" class="btn" title="Mostrar / ocultar montos">👁️ Montos</button>
-        <button id="btn-run" class="btn primary">Generar reporte ahora</button>
+        <button id="btn-eye" class="btn" title="Mostrar / ocultar montos"><i data-lucide="eye"></i> Ocultar</button>
+        <button id="btn-run" class="btn primary"><i data-lucide="refresh-cw"></i> Generar reporte ahora</button>
       </header>
 
       <!-- RENDIMIENTOS (cartera total: variable + fija) -->
@@ -116,8 +116,8 @@
             <h2>Cartera</h2>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span id="quotes-updated" class="muted-sm"></span>
-              <button class="btn" id="btn-refresh" onclick="refreshQuotes()">🔄 Actualizar cotizaciones</button>
-              <button class="btn" onclick="exportCsv()">Exportar CSV</button>
+              <button class="btn" id="btn-refresh" onclick="refreshQuotes()"><i data-lucide="refresh-cw"></i> Actualizar cotizaciones</button>
+              <button class="btn" onclick="exportCsv()"><i data-lucide="download"></i> Exportar CSV</button>
             </div>
           </div>
           <div class="filters" id="filters">
@@ -206,8 +206,8 @@
           <div class="panel-head">
             <h2>Cartera <span class="muted-sm">ON y bonos</span></h2>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button class="btn" id="rf-refresh" title="Traer cotizaciones de data912">🔄 Actualizar precios</button>
-              <button class="btn" id="rf-imp-boletos" title="Carga inicial masiva desde el export de boletos del broker">⬆️ Importar boletos</button>
+              <button class="btn" id="rf-refresh" title="Traer cotizaciones de data912"><i data-lucide="refresh-cw"></i> Actualizar precios</button>
+              <button class="btn" id="rf-imp-boletos" title="Carga inicial masiva desde el export de boletos del broker"><i data-lucide="upload"></i> Importar boletos</button>
             </div>
           </div>
           <div id="rf-content"></div>
@@ -294,8 +294,8 @@
           <div class="panel-head">
             <h2>Cronograma <span class="muted-sm">cupones y amortizaciones</span></h2>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn" id="rf-imp-mov" title="Subí el export de movimientos para cargar la renta ya cobrada">💵 Importar movimientos</button>
-              <button class="btn" id="rf-imp-crono" title="Subí el DetallePagos para actualizar los cupones (se mantiene en el tiempo)">🗓️ Importar cronograma</button>
+              <button class="btn" id="rf-imp-mov" title="Subí el export de movimientos para cargar la renta ya cobrada"><i data-lucide="banknote"></i> Importar movimientos</button>
+              <button class="btn" id="rf-imp-crono" title="Subí el DetallePagos para actualizar los cupones (se mantiene en el tiempo)"><i data-lucide="calendar-days"></i> Importar cronograma</button>
             </div>
           </div>
           <div id="rf-crono-content"></div>
@@ -340,7 +340,7 @@
               <select id="sg-type"><option>Todos</option><option>Acción</option><option>ETF</option><option>ETF apalancado</option></select>
             </label>
             <label style="flex-direction:row;align-items:center;gap:6px">
-              <input type="checkbox" id="sg-incnew" style="width:auto"> Incluir nuevos 🔎
+              <input type="checkbox" id="sg-incnew" style="width:auto"> Incluir nuevos
             </label>
             <button class="btn primary" id="sg-go">Calcular</button>
           </div>

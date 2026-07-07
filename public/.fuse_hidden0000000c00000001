@@ -96,15 +96,6 @@ function tagsHtml(obs) {
 
 // ---------- Privacidad de montos (ojito) ----------
 function ic(name, extra) { return `<i data-lucide="${name}"${extra ? ` class="${extra}"` : ''}></i>`; }
-// Placeholder de carga (shimmer) — n líneas.
-function skel(n = 6) { return `<div class="skel-rows">${Array.from({ length: n }, () => '<div class="skel skel-line"></div>').join('')}</div>`; }
-// Estado vacío con llamada a la acción. btn = {label, onclick} opcional.
-function emptyCta(icon, title, sub, btn) {
-  return `<div class="empty-cta"><div class="ec-icon">${ic(icon)}</div>`
-    + `<div class="ec-title">${title}</div>${sub ? `<div class="ec-sub">${sub}</div>` : ''}`
-    + (btn ? `<button class="btn primary" onclick="${btn.onclick}">${btn.icon ? ic(btn.icon) + ' ' : ''}${btn.label}</button>` : '')
-    + `</div>`;
-}
 let _iconT;
 function refreshIcons() { clearTimeout(_iconT); _iconT = setTimeout(() => { try { window.lucide && lucide.createIcons(); } catch (e) { /* noop */ } }, 30); }
 function setEye() {
@@ -487,9 +478,7 @@ function renderCartera() {
   const el = document.getElementById('holdings-table');
 
   if (!rows.length) {
-    el.innerHTML = HOLDINGS.length
-      ? '<div class="empty">Ningún resultado con esos filtros.</div>'
-      : emptyCta('briefcase', 'Todavía no cargaste tu cartera', 'Agregá tus compras de acciones y CEDEARs para ver valuación, resultado y evolución.', { label: 'Agregar tenencia', icon: 'plus', onclick: "showSection('tenencias')" });
+    el.innerHTML = '<div class="empty">' + (HOLDINGS.length ? 'Ningún resultado con esos filtros.' : 'No hay tenencias. Cargalas en la sección Tenencias.') + '</div>';
   } else if (f.view === 'consolidated') {
     el.innerHTML = `<table><thead><tr>
         <th>Ticker</th><th class="num">Compra prom.</th><th class="num">Actual</th>
@@ -576,7 +565,7 @@ function renderManage() {
     sub: 'venta', actions: `<button title="Borrar (devuelve la cantidad)" onclick="delSale(${s.id})">${ic('trash-2')}</button>`,
   }));
   const all = [...compras, ...ventas].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
-  if (!all.length) { el.innerHTML = emptyCta('arrow-left-right', 'No hay movimientos', 'Registrá tus compras y ventas para armar el histórico de la cartera.', { label: 'Agregar tenencia', icon: 'plus', onclick: 'openHoldingForm()' }); return; }
+  if (!all.length) { el.innerHTML = '<div class="empty">No hay movimientos. Usá “Importar lista” o “+ Agregar tenencia”.</div>'; return; }
   el.innerHTML = `<div class="muted-sm" style="margin-bottom:8px">${compras.length} compras · ${ventas.length} ventas</div>
     <table><thead><tr>
       <th>Ticker</th><th class="num">Fecha</th><th>Op</th><th class="num">Nominales</th><th class="num">Precio</th><th class="num"></th>
@@ -805,7 +794,7 @@ function renderSuggestResult(data) {
   const rows = p.rows.filter(r => r.cedears > 0);
   const expl = data.aiRationale || data.rationale;
   const explTitle = data.aiRationale ? 'Comentario del modelo (IA)' : 'Resumen';
-  const noticeHtml = data.notice ? `<div class="notice">${ic('alert-triangle')} ${data.notice}</div>` : '';
+  const noticeHtml = data.notice ? `<div class="notice">⚠️ ${data.notice}</div>` : '';
   const ti = data.techInfo;
   let techNote = '';
   if (ti && ti.enabled && ti.count === 0) techNote = `<div class="notice">Sin indicadores técnicos: FMP no devolvió datos${ti.error ? ` — ${ti.error}` : ''}.</div>`;
@@ -815,8 +804,8 @@ function renderSuggestResult(data) {
   const hasGuide = Object.keys(GUIDE_MAP).length > 0;
   const vender = rows.filter(r => gSenal(r.ticker) === 'Vender').map(r => r.ticker);
   const fuera = hasGuide ? rows.filter(r => !gSenal(r.ticker)).map(r => r.ticker) : [];
-  const guideAlert = (vender.length ? `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">${ic('alert-triangle')} Sugiere comprar algo que tu guía marca <b>Vender</b>: ${vender.join(', ')}.</div>` : '')
-    + (fuera.length ? `<div class="muted-sm" style="margin-bottom:8px">${ic('alert-triangle')} Fuera de tu guía: ${fuera.join(', ')}</div>` : '')
+  const guideAlert = (vender.length ? `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">⚠ Sugiere comprar algo que tu guía marca <b>Vender</b>: ${vender.join(', ')}.</div>` : '')
+    + (fuera.length ? `<div class="muted-sm" style="margin-bottom:8px">⚠ Fuera de tu guía: ${fuera.join(', ')}</div>` : '')
     + (hasGuide && !vender.length && !fuera.length ? `<div class="muted-sm" style="margin-bottom:8px"><span class="pos">✓</span> Todo lo sugerido está en tu guía.</div>` : '');
   document.getElementById('sg-result').innerHTML = `
     ${noticeHtml}${techNote}${guideAlert}
@@ -830,7 +819,7 @@ function renderSuggestResult(data) {
       <th>Ticker</th><th>Guía</th><th class="num">Comprar</th><th class="num">% del aporte</th><th class="num hide-sm">Precio CEDEAR</th><th class="num hide-sm">Monto aprox.</th><th class="num">Peso (actual→obj.→final)</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr>
-        <td>${r.preferida ? ic('star') : ic('search')} ${tb(r.ticker)} <span class="muted-sm">${r.type}${r.preferida ? '' : ' · nuevo'}</span>${r.preferida ? '' : ` <button class="btn" style="padding:2px 7px;font-size:12px" onclick='addSuggested(${JSON.stringify(r.ticker)},${r.ratio},${r.ratioKnown},${JSON.stringify(r.name || '')})'>+ Agregar</button>`}${techBadges(r.tech)}</td>
+        <td>${r.preferida ? '★' : '🔎'} ${tb(r.ticker)} <span class="muted-sm">${r.type}${r.preferida ? '' : ' · nuevo'}</span>${r.preferida ? '' : ` <button class="btn" style="padding:2px 7px;font-size:12px" onclick='addSuggested(${JSON.stringify(r.ticker)},${r.ratio},${r.ratioKnown},${JSON.stringify(r.name || '')})'>+ Agregar</button>`}${techBadges(r.tech)}</td>
         <td>${senalBadge(gSenal(r.ticker))} ${perfilChip(gPerfil(r.ticker))}</td>
         <td class="num"><b>${r.cedears}</b></td>
         <td class="num"><b>${r.pctOfNew}%</b></td>
@@ -862,7 +851,7 @@ async function loadDiscover(useAI) {
   if (badge) badge.innerHTML = CONFIG.aiEnabled ? ic('bot') + ' IA disponible' : 'IA no configurada';
   const f = discFilters();
   const el = document.getElementById('disc-result');
-  el.innerHTML = skel(5);
+  el.innerHTML = '<div class="empty">Buscando…</div>';
   try {
     let data;
     if (useAI) data = await api('/discover', { method: 'POST', body: JSON.stringify(f) });
@@ -1254,7 +1243,7 @@ async function loadRfCons() {
 async function renderRendimientos() {
   const el = document.getElementById('rend-content');
   if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:20px 4px">Cargando…</div>';
   await loadRfCons();
   rfRenderConsolidado(el);
 }
@@ -1263,7 +1252,7 @@ async function renderRendimientos() {
 async function renderRentaFija() {
   const el = document.getElementById('rf-content');
   if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:20px 4px">Cargando…</div>';
   await loadRf();
   rfRenderFija(el);
 }
@@ -1318,12 +1307,12 @@ function rfRenderFija(el) {
 
   if (t.escalaRara > 0) {
     html += `<div style="margin:12px 0 0;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">
-      ${ic('alert-triangle')} ${t.escalaRara} ${t.escalaRara === 1 ? 'precio con escala incorrecta' : 'precios con escala incorrecta'} (quedaron en pesos): se valúan al costo.
+      ⚠️ ${t.escalaRara} ${t.escalaRara === 1 ? 'precio con escala incorrecta' : 'precios con escala incorrecta'} (quedaron en pesos): se valúan al costo.
       <a href="#" id="rf-nudge-clear">Limpiar precios</a> y después <a href="#" id="rf-nudge-refresh2">Actualizar precios</a>.</div>`;
   }
   if (t.sinPrecio > 0) {
     html += `<div class="muted-sm" style="margin:12px 0 0;padding:9px 12px;border:1px dashed var(--line);border-radius:10px">
-      ${ic('alert-triangle')} ${t.sinPrecio} ${t.sinPrecio === 1 ? 'posición valuada' : 'posiciones valuadas'} al costo (sin precio de mercado).
+      ⚠️ ${t.sinPrecio} ${t.sinPrecio === 1 ? 'posición valuada' : 'posiciones valuadas'} al costo (sin precio de mercado).
       <a href="#" id="rf-nudge-refresh">Actualizar precios</a> o cargalos a mano en la tabla.</div>`;
   }
 
@@ -1482,11 +1471,11 @@ function drawRfGain() {
 }
 async function renderRfAnalisis() {
   const el = document.getElementById('rf-analisis-content'); if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:20px 4px">Cargando…</div>';
   await loadRf();
   const d = RF_DATA || {}; const t = d.totals || {};
   const rows = (d.rows || []).filter(r => r.valorActual != null);
-  if (!rows.length) { el.innerHTML = emptyCta('pie-chart', 'Todavía no hay datos de renta fija', 'Importá el export de boletos del broker para ver tus ONs y bonos.', { label: 'Ir a Cartera RF', icon: 'landmark', onclick: "showSection('rentafija')" }); return; }
+  if (!rows.length) { el.innerHTML = '<div class="empty">Todavía no hay datos de renta fija. Importá boletos en la sección Cartera.</div>'; return; }
   let html = rfKpiCards([
     { label: 'Capital aportado', value: money(t.capitalAportado) },
     { label: 'Valor actual', value: money(t.valorActual) },
@@ -1748,7 +1737,7 @@ function applyRfSetupVisibility() {
 }
 async function renderRfMovimientos() {
   const el = document.getElementById('rf-mov-content'); if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
   await loadRfTrades();
   const rows = [...RF_TRADES].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
   const compras = rows.filter(t => t.side !== 'VENTA').length, ventas = rows.length - compras;
@@ -1810,7 +1799,7 @@ async function registerRfSale() {
 // ---- Cronograma (cupones) ----
 async function renderRfCronograma() {
   const el = document.getElementById('rf-crono-content'); if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
   await loadRf();
   let payments = []; try { payments = await api('/rf/payments'); } catch { payments = []; }
   const today = new Date().toISOString().slice(0, 10);
@@ -1824,7 +1813,7 @@ async function renderRfCronograma() {
     html += `<div style="text-align:center;padding:24px 12px;border:1px dashed var(--line);border-radius:12px">
       <div style="margin-bottom:6px">Todavía no cargaste el cronograma futuro</div>
       <div class="muted-sm" style="margin-bottom:12px">Subí el DetallePagos del broker para ver los próximos cupones y amortizaciones.</div>
-      <button class="btn primary" onclick="document.getElementById('rf-file-crono').click()">${ic('calendar-days')} Importar cronograma</button></div>`;
+      <button class="btn primary" onclick="document.getElementById('rf-file-crono').click()">🗓️ Importar cronograma</button></div>`;
     el.innerHTML = html; return;
   }
   const mm = d.monthly || [];
@@ -1852,9 +1841,9 @@ async function renderRfCronograma() {
 let RF_CAT = [];
 async function renderRfCatalogo() {
   const el = document.getElementById('rf-cat-content'); if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
   try { RF_CAT = await api('/rf/catalog'); } catch { RF_CAT = []; }
-  if (!RF_CAT.length) { el.innerHTML = emptyCta('bookmark', 'Catálogo vacío', 'Cargá ONs y bonos candidatos para cruzarlos con tu guía y las sugerencias.', { label: 'Agregar', icon: 'plus', onclick: "document.getElementById('rf-cat-add').click()" }); return; }
+  if (!RF_CAT.length) { el.innerHTML = '<div class="empty">Catálogo vacío. Usá “＋ Agregar” para cargar ONs/bonos candidatos.</div>'; return; }
   el.innerHTML = `<table><thead><tr>
       <th>Ticker</th><th class="hide-sm">Emisor</th><th>Clase</th><th class="num">Rating</th><th class="num">Mín. nom.</th><th class="num hide-sm">Precio</th><th class="num"></th>
     </tr></thead><tbody>${RF_CAT.map(c => `
@@ -1949,7 +1938,7 @@ const perfilChip = (p) => !p ? '' : chip(`${ic(p === 'Conservador' ? 'shield' : 
 const liqBadge = (l) => !l ? '—' : chip(l, l === 'Alta' ? '#34d399' : l === 'Media' ? 'var(--amber,#e0a800)' : '#f87171', 'Liquidez ' + l);
 async function renderRfSug() {
   const el = document.getElementById('rf-sug-content'); if (!el) return;
-  el.innerHTML = skel(7);
+  el.innerHTML = '<div class="muted-sm" style="padding:16px 4px">Cargando…</div>';
   const monto = Number(document.getElementById('rfs-monto').value) || 0;
   try { RF_SUG = await api('/rf/suggest' + (monto ? ('?monto=' + monto) : '')); } catch { RF_SUG = null; }
   renderRfSugResult();
@@ -1965,8 +1954,8 @@ function renderRfSugResult() {
   const monto = Number(document.getElementById('rfs-monto').value) || 0;
 
   let html = '';
-  html += `<div class="muted-sm" style="margin-bottom:6px">${s.guideCount ? `Guía: ${s.guideCount} recomendaciones cruzadas` : (s.guideError ? `${ic('alert-triangle')} Guía no disponible (${s.guideError})` : 'Guía no cargada')}</div>`;
-  if ((s.alertasVender || []).length) html += `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">${ic('alert-triangle')} Tu guía marca <b>Vender</b> algo que tenés: ${s.alertasVender.map(a => a.ticker).join(', ')}. Revisá si conviene salir.</div>`;
+  html += `<div class="muted-sm" style="margin-bottom:6px">${s.guideCount ? `Guía: ${s.guideCount} recomendaciones cruzadas` : (s.guideError ? `⚠ Guía no disponible (${s.guideError})` : 'Guía no cargada')}</div>`;
+  if ((s.alertasVender || []).length) html += `<div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--red);border-radius:10px;color:var(--red);font-size:13px">⚠ Tu guía marca <b>Vender</b> algo que tenés: ${s.alertasVender.map(a => a.ticker).join(', ')}. Revisá si conviene salir.</div>`;
   if ((s.fueraGuia || []).length) html += `<div class="muted-sm" style="margin-bottom:10px">Tenés fuera de la guía: ${s.fueraGuia.join(', ')}</div>`;
 
   // --- Principal: las "Comprar" de tu guía ---
@@ -1986,7 +1975,7 @@ function renderRfSugResult() {
       const paga = (x.mesesPago && x.mesesPago.length)
         ? x.mesesPago.map(mm => lowMM.has(mm) ? `<span class="pos">${MES[+mm - 1]}</span>` : MES[+mm - 1]).join(', ')
         : '<span class="muted-sm">sin cronograma</span>';
-      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.tir != null ? rfPct(x.tir) : (x.tirNota ? `<span class="neg" title="${esc(x.tirNota)}">${ic('alert-triangle')}</span>` : '—'), liqBadge(x.liquidez), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, paga];
+      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.tir != null ? rfPct(x.tir) : (x.tirNota ? `<span class="neg" title="${esc(x.tirNota)}">⚠</span>` : '—'), liqBadge(x.liquidez), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, paga];
     }), [1, 0, 0, 0, 0, 0, 1]);
 
   // --- Secundario: emparejar renta por mes ---
