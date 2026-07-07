@@ -1554,8 +1554,8 @@ function rfBarValor(id, rows) {
     data: { labels, datasets: [{ data, backgroundColor: '#3b82f6', borderRadius: 4 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${money(x.raw)} · ${tot > 0 ? round2(x.raw / tot * 100) : 0}%` } } },
-      scales: { x: { ticks: { callback: (v) => HIDE_MONEY ? '' : (v >= 1000 ? (v / 1000) + 'k' : v) } }, y: { ticks: { autoSkip: false, font: { size: 11 } } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${(CONFIG.currency || 'USD')} ${Number(x.raw).toLocaleString('es-AR')} · ${tot > 0 ? round2(x.raw / tot * 100) : 0}%` } } },
+      scales: { x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } }, y: { ticks: { autoSkip: false, font: { size: 11 } } } },
     },
   });
 }
