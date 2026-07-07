@@ -1939,7 +1939,7 @@ function renderRfSugResult() {
       const paga = (x.mesesPago && x.mesesPago.length)
         ? x.mesesPago.map(mm => lowMM.has(mm) ? `<span class="pos">${MES[+mm - 1]}</span>` : MES[+mm - 1]).join(', ')
         : '<span class="muted-sm">sin cronograma</span>';
-      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.tir != null ? rfPct(x.tir) : '—', liqBadge(x.liquidez), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, paga];
+      return [`${tb(x.ticker)} ${perfilChip(x.perfil)} ${senalBadge(x.senal)} <span class="muted-sm">${esc(x.emisor || '')}${x.held ? '' : ' · nueva'}</span>`, esc(x.rating || '—'), x.tir != null ? rfPct(x.tir) : (x.tirNota ? `<span class="neg" title="${esc(x.tirNota)}">⚠</span>` : '—'), liqBadge(x.liquidez), x.minNominales ? nf(x.minNominales) : '—', monto > 0 ? nomCell : estado, paga];
     }), [1, 0, 0, 0, 0, 0, 1]);
 
   // --- Secundario: emparejar renta por mes ---

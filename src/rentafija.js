@@ -280,6 +280,17 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
     if (price == null) sinPrecio++;
     if (priceOffScale) escalaRara++;
 
+    // TIR (con salvaguarda): si los flujos futuros no alcanzan a recuperar lo
+    // invertido (precio × VN), el cronograma está incompleto —típico cuando
+    // falta la amortización del capital, o el VN no bajó por amortizaciones ya
+    // pagadas—. En ese caso la TIR sería engañosamente baja, así que la anulamos
+    // y avisamos.
+    const cf = cashflowsByTicker[tk] || [];
+    const sumCf = cf.reduce((a, c) => a + (Number(c.monto) || 0), 0);
+    let tir = price != null ? tirOf({ price, vn, cashflows: cf, today: hoy }) : null;
+    let tirNota = null;
+    if (price != null && cf.length && sumCf < price * vn * 0.98) { tirNota = 'cronograma incompleto (¿falta amortización?)'; tir = null; }
+
     rows.push({
       ticker: tk,
       clase: arr[0].clase,
@@ -300,7 +311,7 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
       vencimiento: vtoByTicker[tk] || null,
       diasVto: vtoByTicker[tk] ? Math.round((Date.parse(vtoByTicker[tk]) - Date.parse(hoy)) / 86400000) : null,
       aniosVto: vtoByTicker[tk] ? r2(Math.round((Date.parse(vtoByTicker[tk]) - Date.parse(hoy)) / 86400000) / 365.25) : null,
-      tir: price != null ? tirOf({ price, vn, cashflows: cashflowsByTicker[tk] || [], today: hoy }) : null,
+      tir, tirNota,
       liquidez: pr && pr.liquidez ? pr.liquidez : null,
       volumen: pr && pr.volumen != null ? pr.volumen : null,
     });
@@ -387,6 +398,7 @@ export function suggestReinforce({ payments = [], rows = [], catalog = [], price
       precio, nominales, alcanzaMinimo: nominales == null ? null : (nominales >= minN),
       mesesPago: payMonthNums[tk] ? [...payMonthNums[tk]].sort() : [],
       tir: row ? row.tir ?? null : null,
+      tirNota: row ? row.tirNota || null : null,
       liquidez: prices[tk] ? prices[tk].liquidez || null : null,
     };
   };
