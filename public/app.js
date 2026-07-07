@@ -290,19 +290,28 @@ function renderDist() {
   } else {
     labels = rows.map(r => r.ticker); data = rows.map(r => r.positionValue);
   }
+  // Ordena de mayor a menor y dibuja barras horizontales con la escala visible.
+  const pairs = labels.map((l, i) => ({ l, v: data[i] })).sort((a, b) => b.v - a.v);
+  labels = pairs.map(p => p.l); data = pairs.map(p => Math.round(p.v * 100) / 100);
   const total = data.reduce((a, b) => a + b, 0);
+  const cv = document.getElementById('chart-dist');
+  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(220, labels.length * 26) + 'px';
   drawChart('dist', 'chart-dist', {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: palette(labels.length) }] },
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: '#3b82f6', borderRadius: 4 }] },
     options: {
+      indexAxis: 'y', maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { display: false },
         tooltip: { callbacks: { label: (ctx) => {
-          const v = ctx.parsed; const p = total ? Math.round((v / total) * 1000) / 10 : 0;
-          return HIDE_MONEY ? `${ctx.label}: ${p}%` : `${ctx.label}: ${money(v)} (${p}%)`;
+          const v = ctx.parsed.x; const p = total ? Math.round((v / total) * 1000) / 10 : 0;
+          return `${(CONFIG.currency || 'USD')} ${Number(v).toLocaleString('es-AR')} · ${p}%`;
         } } },
       },
-      maintainAspectRatio: false,
+      scales: {
+        x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } },
+        y: { ticks: { autoSkip: false, font: { size: 11 } } },
+      },
     },
   });
 }
