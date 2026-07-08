@@ -39,7 +39,7 @@ import { CEDEAR_RATIOS } from './ratios.js';
 import { computeSuggestion, templateRationale } from './advisor.js';
 import { aiEnabled, aiRationale, aiScores as aiScoresFn, aiDiscover, lastAiError, aiModel, listModels } from './ai.js';
 import { filterUniverse } from './universe.js';
-import { signalsEnabled, getSignals, getHistory, momentumScore, lastSignalError, clearSeriesMemory } from './signals.js';
+import { signalsEnabled, getSignals, getHistory, momentumScore, lastSignalError, clearSeriesMemory, warmSeriesCache } from './signals.js';
 import { computeTechnicals, techFactor, returnsFromSeries } from './technicals.js';
 import { reconstruct } from './backfill.js';
 import { isEnabled as ssoEnabled, installAuth, apiGuard, pageGuard, currentUser } from './auth.js';
@@ -526,6 +526,21 @@ app.post('/api/rf/refresh-prices', wrap(async (_req, res) => {
   try { res.json(await updateRfPrices()); }
   catch (e) { res.json({ updated: 0, error: e.message }); }
 }));
+
+// Precarga de series (technicals) de renta variable: tenencias + catálogo
+// (watchlist). Reutilizable por el cron nocturno y por el botón manual.
+async function warmCatalogSeries() {
+  if (!signalsEnabled()) return { enabled: false };
+  const [holds, watch] = await Promise.all([listHoldings(), listWatchlist()]);
+  const tickers = [...new Set([...holds.map((h) => h.ticker), ...watch.map((w) => w.ticker)])];
+  const max = Number(process.env.SERIES_WARM_MAX) > 0 ? Number(process.env.SERIES_WARM_MAX) : 40;
+  return warmSeriesCache(tickers, { max });
+}
+// Disparo manual (por si querés forzar la precarga sin esperar la noche).
+app.post('/api/series/warm', wrap(async (_req, res) => {
+  try { res.json(await warmCatalogSeries()); }
+  catch (e) { res.json({ enabled: signalsEnabled(), error: e.message }); }
+}));
 // Histórico de precios (snapshot) para la evolución.
 app.get('/api/rf/price-history', wrap(async (req, res) => res.json(await listRfPriceHistory(req.query.ticker || null))));
 
@@ -738,6 +753,13 @@ async function start() {
         }
       } catch (e) {
         console.error('[cron] renta reminder error:', e.message);
+      }
+      // Precarga de series (technicals) del catálogo, de a pocos por noche.
+      try {
+        const w = await warmCatalogSeries();
+        if (w.enabled) console.log(`[cron] warm series — cacheados ${w.cacheados}/${w.intentados} (faltaban ${w.candidatos})${w.error ? ' — ' + w.error : ''}`);
+      } catch (e) {
+        console.error('[cron] warm series error:', e.message);
       }
     }, { timezone: tz });
     console.log(`[cron] programado ${expr} (${tz})`);

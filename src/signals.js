@@ -115,6 +115,36 @@ export async function getHistory(tickers) {
   return out;
 }
 
+// Precarga (warm) de la cache de series para una lista de tickers, respetando
+// el límite diario de FMP (plan gratuito ≈ 250 req/día). Prioriza los que
+// faltan o están más viejos y corta al llegar a `max`, así en pocas noches
+// cubre todo el catálogo sin agotar la cuota.
+export async function warmSeriesCache(tickers, { max = 40, refreshDays = 5 } = {}) {
+  if (!FMP_KEY) return { enabled: false };
+  _lastError = null;
+  const uniq = [...new Set((tickers || []).map(t => String(t || '').toUpperCase().trim()).filter(Boolean))];
+  const now = Date.now();
+  const staleMs = refreshDays * 24 * 3600 * 1000;
+  const scored = [];
+  for (const t of uniq) {
+    let stored = null;
+    try { stored = await getStoredSeries(t); } catch { /* noop */ }
+    const ageMs = stored ? (now - new Date(stored.updated_at).getTime()) : Infinity;
+    if (ageMs >= staleMs) scored.push({ t, ageMs });
+  }
+  scored.sort((a, b) => b.ageMs - a.ageMs); // faltantes primero, luego los más viejos
+  const todo = scored.slice(0, Math.max(0, max));
+  let fetched = 0, failed = 0;
+  for (const { t } of todo) {
+    let ser = null;
+    try { ser = await fetchSeriesFromFmp(t); } catch (e) { _lastError = e.message; }
+    if (ser) { try { await saveSeries(t, ser); _hist.set(t, { ts: Date.now(), series: ser }); } catch { /* noop */ } fetched++; }
+    else failed++;
+    await sleep(300);
+  }
+  return { enabled: true, candidatos: scored.length, intentados: todo.length, cacheados: fetched, fallidos: failed, error: _lastError };
+}
+
 // Puntaje de momentum a partir de las señales (estrategia sin IA).
 export function momentumScore(sig) {
   if (!sig) return 1;
