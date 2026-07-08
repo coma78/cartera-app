@@ -19,7 +19,7 @@ import {
   listRfIncome, saveRfIncome, clearRfIncome,
   listRfCatalog, addRfCatalog, updateRfCatalog, deleteRfCatalog,
 } from './db.js';
-import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep, suggestReinforce } from './rentafija.js';
+import { enrichTrades, computePortfolio, monthlyRenta, upcomingPayments, classify, emisorFrom, isRF, buildMepIndex, extractIncome, precioUsdOf, netoUsdOf, fallbackMep, suggestReinforce, rentaByYear } from './rentafija.js';
 import { fetchRfPrices } from './rfprices.js';
 import { getGuide } from './guide.js';
 
@@ -441,6 +441,7 @@ app.get('/api/rf/holdings', wrap(async (_req, res) => {
     totals: rf.totals,
     monthly: monthlyRenta(rf.payments, { today: rf.today }),
     upcoming: upcomingPayments(rf.payments, { today: rf.today }),
+    byYear: rentaByYear(rf.income),
     hasData: rf.rows.length > 0 || rf.payments.length > 0,
   });
 }));

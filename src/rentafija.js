@@ -378,6 +378,22 @@ export function monthlyRenta(payments = [], { today, months = 12 } = {}) {
     .map((b) => ({ ym: b.ym, renta: r2(b.renta), amort: r2(b.amort), total: r2(b.total) }));
 }
 
+// Renta (y amortización) YA COBRADA, agrupada por año calendario. Sale de los
+// "movimientos" (income) que tienen fecha. Sirve para ver cuánto rindió cada año.
+export function rentaByYear(income = []) {
+  const buckets = {};
+  for (const inc of income) {
+    const y = String(inc.fecha || '').slice(0, 4);
+    if (!/^\d{4}$/.test(y)) continue;
+    const g = (buckets[y] ??= { year: y, renta: 0, amort: 0 });
+    if (inc.tipo === 'ramort') g.amort += Number(inc.importe) || 0;
+    else g.renta += Number(inc.importe) || 0;
+  }
+  return Object.values(buckets)
+    .sort((a, b) => a.year.localeCompare(b.year))
+    .map((b) => ({ year: b.year, renta: r2(b.renta), amort: r2(b.amort), total: r2(b.renta + b.amort) }));
+}
+
 // Sugerencia: reforzar los meses con renta más baja. Mira la renta por mes y,
 // para los meses "valle", propone las especies (tuyas o del catálogo) que pagan
 // en ese mes, con su rating y mínimo de nominales.

@@ -1640,6 +1640,20 @@ async function renderRfAnalisis() {
     </div>
   </div>`;
   const totVal = rows.reduce((a, r) => a + (r.valorActual || 0), 0);
+  const byYear = d.byYear || [];
+  if (byYear.length) {
+    const totRenta = byYear.reduce((a, y) => a + (y.renta || 0), 0);
+    const totAmort = byYear.reduce((a, y) => a + (y.amort || 0), 0);
+    html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Renta cobrada por año</h2><span class="muted-sm">cupones efectivamente cobrados (USD)</span></div>
+      <div class="muted-sm" style="margin:-4px 0 8px">La ganancia total de arriba también incluye la valorización actual de mercado, que no se atribuye a un año puntual.</div>
+      <div class="grid2">
+        <div class="chart-wrap" style="height:230px"><canvas id="rfa-year"></canvas></div>
+        <div>${rfTable(['Año', 'Renta', 'Amort.', 'Total'],
+          byYear.map(y => [y.year, `<span class="pos">${money(y.renta)}</span>`, y.amort > 0 ? money(y.amort) : '—', money(y.total)])
+            .concat([['Total', `<b class="pos">${money(totRenta)}</b>`, totAmort > 0 ? `<b>${money(totAmort)}</b>` : '—', `<b>${money(totRenta + totAmort)}</b>`]]),
+          [1, 0, 0, 0])}</div>
+      </div>`;
+  }
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Detalle por especie</h2></div>`;
   const diasAnios = (d, a) => d == null ? '—' : `${nf(d)} Días <span class="muted-sm">(${(Number(a) || 0).toFixed(2).replace('.', ',')} Años)</span>`;
   html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada', 'Tenencia', 'Al vto.'],
@@ -1660,6 +1674,7 @@ async function renderRfAnalisis() {
   // Mismo orden (por valor, de mayor a menor) para los dos gráficos.
   const rowsOrdenadas = [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0));
   rfBarValor('rfa-dist', rowsOrdenadas);
+  if (byYear.length) rfBarYear('rfa-year', byYear);
   RF_AN_ROWS = rowsOrdenadas;
   drawRfGain();
   el.querySelectorAll('.seg-btn[data-rfgain]').forEach(b => b.onclick = () => {
@@ -1710,6 +1725,21 @@ function rfBarValor(id, rows) {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${(CONFIG.currency || 'USD')} ${Number(x.raw).toLocaleString('es-AR')} · ${tot > 0 ? round2(x.raw / tot * 100) : 0}%` } } },
       scales: { x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } }, y: { ticks: { autoSkip: false, font: { size: 11 } } } },
+    },
+  });
+}
+function rfBarYear(id, byYear) {
+  const cv = document.getElementById(id); if (!cv || typeof Chart === 'undefined') return;
+  if (CHARTS[id]) CHARTS[id].destroy();
+  const labels = byYear.map(y => y.year);
+  const data = byYear.map(y => round2(y.renta || 0));
+  CHARTS[id] = new Chart(cv, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: '#34d399', borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${(CONFIG.currency || 'USD')} ${Number(x.raw).toLocaleString('es-AR')}` } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } }, x: { grid: { display: false } } },
     },
   });
 }
