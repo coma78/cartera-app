@@ -69,16 +69,50 @@ const L1_TTL = 60 * 60 * 1000;        // 1 h
 const STORE_TTL = 20 * 60 * 60 * 1000; // 20 h (refresca ~1 vez por día)
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// Respaldo sin API key ni límite diario: Stooq (CSV diario de cierres).
+// Sirve para acciones y ETFs listados en EEUU (sufijo .us). Se usa cuando FMP
+// no devuelve datos (cuota agotada o símbolo no cubierto por el plan).
+async function fetchSeriesFromStooq(t) {
+  const sym = (ALIAS[t] || t).toLowerCase();
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(`https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}.us&i=d`, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    const txt = await res.text();
+    if (!txt || txt[0] === '<' || /no data|n\/d/i.test(txt.slice(0, 40))) return null;
+    const lines = txt.trim().split(/\r?\n/);
+    if (lines.length < 3) return null;
+    const head = lines[0].toLowerCase().split(',');
+    const di = head.indexOf('date'), ci = head.indexOf('close');
+    if (di < 0 || ci < 0) return null;
+    const ser = lines.slice(1)
+      .map(l => { const c = l.split(','); return { date: String(c[di]).slice(0, 10), close: Number(c[ci]) }; })
+      .filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && Number.isFinite(x.close))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return ser.length ? ser : null;
+  } catch (e) { return null; }
+  finally { clearTimeout(to); }
+}
+
 async function fetchSeriesFromFmp(t) {
   const sym = ALIAS[t] || t;
+  let ser = null;
   const r = await fetchJson(`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${encodeURIComponent(sym)}&apikey=${FMP_KEY}`);
-  if (!r.ok) { _lastError = r.error; return null; }
-  const arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
-  const ser = (arr || [])
-    .map(h => ({ date: String(h.date).slice(0, 10), close: Number(h.price ?? h.close ?? h.adjClose) }))
-    .filter(x => Number.isFinite(x.close))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  return ser.length ? ser : null;
+  if (r.ok) {
+    const arr = Array.isArray(r.body) ? r.body : (r.body && Array.isArray(r.body.historical) ? r.body.historical : null);
+    ser = (arr || [])
+      .map(h => ({ date: String(h.date).slice(0, 10), close: Number(h.price ?? h.close ?? h.adjClose) }))
+      .filter(x => Number.isFinite(x.close))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    ser = ser.length ? ser : null;
+  } else { _lastError = r.error; }
+  // Si FMP no devolvió nada (cuota o cobertura), pruebo Stooq.
+  if (!ser) {
+    const alt = await fetchSeriesFromStooq(t);
+    if (alt) { _lastError = null; return alt; }
+  }
+  return ser;
 }
 
 export async function getHistory(tickers) {
