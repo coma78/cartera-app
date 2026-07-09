@@ -332,15 +332,18 @@ function renderDist() {
 function renderWinLoss() {
   const usd = WL_MODE === 'usd';
   const key = usd ? 'plAbs' : 'plPct';
-  const rows = consolidate(HOLDINGS).filter(r => r[key] != null);
-  const sel = [...rows].sort((a, b) => b[key] - a[key]);
+  // Mismo conjunto y orden que el gráfico de tenencias (Distribución por ticker):
+  // ordenado por valor de posición, de mayor a menor, así cada ticker queda a la
+  // misma altura en los dos gráficos. El color sigue marcando ganancia/pérdida.
+  const sel = consolidate(HOLDINGS).filter(r => r.positionValue > 0)
+    .sort((a, b) => (b.positionValue || 0) - (a.positionValue || 0));
   const cv = document.getElementById('chart-wl');
   if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(240, sel.length * 24) + 'px';
   drawChart('wl', 'chart-wl', {
     type: 'bar',
     data: {
       labels: sel.map(r => r.ticker),
-      datasets: [{ data: sel.map(r => r[key]), backgroundColor: sel.map(r => r[key] >= 0 ? '#0a7d33' : '#c0271a') }],
+      datasets: [{ data: sel.map(r => r[key] != null ? r[key] : 0), backgroundColor: sel.map(r => (r[key] || 0) >= 0 ? '#0a7d33' : '#c0271a') }],
     },
     options: {
       indexAxis: 'y', maintainAspectRatio: false,
