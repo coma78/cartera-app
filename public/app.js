@@ -291,7 +291,44 @@ function renderResumen() {
   const plp = document.getElementById('s-plpct'); plp.textContent = pctStr(t.plPct); plp.className = 'card-value ' + cls(t.plPct);
   document.getElementById('s-count').textContent = HOLDINGS.length;
   if (typeof Chart === 'undefined') return;
-  renderDist(); renderWinLoss(); renderEvolution(); renderYearTable();
+  renderHoldPerf(); renderEvolution(); renderYearTable();
+}
+
+// Un solo gráfico que combina tenencia + resultado: barras horizontales del
+// valor de cada posición (ordenadas de mayor a menor), coloreadas verde/rojo
+// según ganás o perdés, con el rendimiento (% o USD) al lado del ticker.
+function renderHoldPerf() {
+  const rows = consolidate(HOLDINGS).filter(r => r.positionValue > 0)
+    .sort((a, b) => (b.positionValue || 0) - (a.positionValue || 0));
+  const cv = document.getElementById('chart-holdperf');
+  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(240, rows.length * 26) + 'px';
+  const usd = WL_MODE === 'usd';
+  const perfTxt = (r) => usd
+    ? (r.plAbs != null ? (r.plAbs >= 0 ? '+' : '') + money(r.plAbs) : '')
+    : (r.plPct != null ? (r.plPct >= 0 ? '+' : '') + round2(r.plPct) + '%' : '');
+  const labels = rows.map(r => `${r.ticker}   ${perfTxt(r)}`);
+  const data = rows.map(r => round2(r.positionValue || 0));
+  const win = (r) => (usd ? (r.plAbs || 0) : (r.plPct || 0)) >= 0;
+  const colors = rows.map(r => win(r) ? '#0a7d33' : '#c0271a');
+  drawChart('holdperf', 'chart-holdperf', {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (x) => {
+          const r = rows[x.dataIndex];
+          const p = r.plPct != null ? (r.plPct >= 0 ? '+' : '') + round2(r.plPct) + '%' : '—';
+          return `Valor ${money(r.positionValue)} · ${p} · ${r.plAbs != null ? money(r.plAbs) : '—'}`;
+        } } },
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } },
+        y: { ticks: { autoSkip: false, font: { size: 11 } } },
+      },
+    },
+  });
 }
 
 function renderDist() {
@@ -1206,7 +1243,7 @@ function bindEvents() {
     if (b.dataset.dist) { DIST_MODE = b.dataset.dist; renderDist(); }
     if (b.dataset.evo) { EVO_MODE = b.dataset.evo; renderEvolution(); }
     if (b.dataset.evog) { EVO_GROUP = b.dataset.evog; renderEvolution(); }
-    if (b.dataset.wl) { WL_MODE = b.dataset.wl; renderWinLoss(); }
+    if (b.dataset.wl) { WL_MODE = b.dataset.wl; renderHoldPerf(); }
     if (b.dataset.dview) { DISC_VIEW = b.dataset.dview; renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI); }
     if (b.dataset.rfview) { RF_VIEW = b.dataset.rfview; renderRentaFija(); }
     if (b.dataset.rfgain) { RF_GAIN_MODE = b.dataset.rfgain; drawRfGain(); }

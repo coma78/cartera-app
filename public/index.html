@@ -79,19 +79,16 @@
           <div class="card"><div class="card-label">Rendimiento</div><div class="card-value" id="s-plpct">—</div></div>
           <div class="card"><div class="card-label">Posiciones</div><div class="card-value" id="s-count">—</div></div>
         </div>
-        <div class="grid2">
-          <div class="panel">
-            <div class="panel-head"><h2>Distribución</h2>
-              <div class="seg"><button class="seg-btn active" data-dist="ticker">Por ticker</button><button class="seg-btn" data-dist="type">Por tipo</button></div>
-            </div>
-            <div class="chart-wrap"><canvas id="chart-dist"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="panel-head"><h2>Ganadoras / perdedoras</h2>
+        <div class="panel">
+          <div class="panel-head"><h2>Tenencias y resultado</h2>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="muted-sm">largo = valor · color = ganás/perdés</span>
               <div class="seg"><button class="seg-btn active" data-wl="pct">%</button><button class="seg-btn" data-wl="usd">USD</button></div>
             </div>
-            <div class="chart-wrap"><canvas id="chart-wl"></canvas></div>
           </div>
+          <div class="chart-wrap"><canvas id="chart-holdperf"></canvas></div>
+        </div>
+        <div class="grid2">
           <div class="panel">
             <div class="panel-head"><h2>Evolución histórica</h2>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
