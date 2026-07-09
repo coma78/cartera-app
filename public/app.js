@@ -1599,7 +1599,14 @@ function drawRfGain() {
   }
   const suf = RF_GAIN_ANUAL ? '% anual' : '%';
   const note = document.getElementById('rfa-gain-note');
-  if (note) note.textContent = (RF_GAIN_ANUAL && short.some(Boolean)) ? '* tenidas hace menos de 1 año: se muestra el acumulado (anualizarlas lo distorsiona).' : '';
+  if (note) {
+    // Leyenda de colores FUERA del gráfico (si estuviera dentro, en modo "Ambas"
+    // empujaría las barras hacia abajo y se desalinearían con el de la izquierda).
+    const sq = (c) => `<span style="display:inline-block;width:9px;height:9px;background:${c};border-radius:2px;margin:0 4px -1px 0"></span>`;
+    const leg = RF_GAIN_MODE === 'ambas' ? `<span style="margin-right:12px">${sq('#3b82f6')}Capital ${sq('#34d399')}Renta</span>` : '';
+    const corta = (RF_GAIN_ANUAL && short.some(Boolean)) ? '* tenidas hace menos de 1 año: se muestra el acumulado (anualizarlas lo distorsiona).' : '';
+    note.innerHTML = leg + corta;
+  }
   if (CHARTS['rfa-gain']) CHARTS['rfa-gain'].destroy();
   if (cv.parentElement) cv.parentElement.style.height = rfChartHeight(rows.length);
   const GREY = '#5f6c80', GREY2 = '#8a97a8';
@@ -1613,7 +1620,7 @@ function drawRfGain() {
     type: 'bar', data: { labels, datasets },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: RF_GAIN_MODE === 'ambas', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (x) => (x.dataset.label ? x.dataset.label + ': ' : '') + x.raw + suf } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => (x.dataset.label ? x.dataset.label + ': ' : '') + x.raw + suf } } },
       scales: { x: { stacked, ticks: { callback: (v) => v + '%' } }, y: { stacked, ticks: { autoSkip: false, font: { size: 11 } } } },
     },
   });
