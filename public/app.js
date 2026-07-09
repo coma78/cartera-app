@@ -291,61 +291,32 @@ function renderResumen() {
   const plp = document.getElementById('s-plpct'); plp.textContent = pctStr(t.plPct); plp.className = 'card-value ' + cls(t.plPct);
   document.getElementById('s-count').textContent = HOLDINGS.length;
   if (typeof Chart === 'undefined') return;
-  renderHoldPerf(); renderEvolution(); renderYearTable();
+  renderDist(); renderWinLoss(); renderEvolution(); renderYearTable();
 }
 
-// Un solo gráfico que combina tenencia + resultado: barras horizontales del
-// valor de cada posición (ordenadas de mayor a menor), coloreadas verde/rojo
-// según ganás o perdés, con el rendimiento (% o USD) al lado del ticker.
-function renderHoldPerf() {
-  const rows = consolidate(HOLDINGS).filter(r => r.positionValue > 0)
+// Alto de fila COMPARTIDO por Distribución y Ganadoras/perdedoras, así las dos
+// (mismo orden y misma cantidad de tickers) quedan alineadas fila por fila.
+function rvRowsAlineadas() {
+  return consolidate(HOLDINGS).filter(r => r.positionValue > 0)
     .sort((a, b) => (b.positionValue || 0) - (a.positionValue || 0));
-  const cv = document.getElementById('chart-holdperf');
-  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(240, rows.length * 26) + 'px';
-  const usd = WL_MODE === 'usd';
-  const perfTxt = (r) => usd
-    ? (r.plAbs != null ? (r.plAbs >= 0 ? '+' : '') + money(r.plAbs) : '')
-    : (r.plPct != null ? (r.plPct >= 0 ? '+' : '') + round2(r.plPct) + '%' : '');
-  const labels = rows.map(r => `${r.ticker}   ${perfTxt(r)}`);
-  const data = rows.map(r => round2(r.positionValue || 0));
-  const win = (r) => (usd ? (r.plAbs || 0) : (r.plPct || 0)) >= 0;
-  const colors = rows.map(r => win(r) ? '#0a7d33' : '#c0271a');
-  drawChart('holdperf', 'chart-holdperf', {
-    type: 'bar',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 4 }] },
-    options: {
-      indexAxis: 'y', maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (x) => {
-          const r = rows[x.dataIndex];
-          const p = r.plPct != null ? (r.plPct >= 0 ? '+' : '') + round2(r.plPct) + '%' : '—';
-          return `Valor ${money(r.positionValue)} · ${p} · ${r.plAbs != null ? money(r.plAbs) : '—'}`;
-        } } },
-      },
-      scales: {
-        x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } },
-        y: { ticks: { autoSkip: false, font: { size: 11 } } },
-      },
-    },
-  });
 }
+function rvChartHeight(n) { return Math.max(260, n * 30) + 'px'; }
 
 function renderDist() {
-  const rows = consolidate(HOLDINGS).filter(r => r.positionValue > 0);
   let labels, data;
   if (DIST_MODE === 'type') {
+    const rows = consolidate(HOLDINGS).filter(r => r.positionValue > 0);
     const by = {}; rows.forEach(r => by[r.type] = (by[r.type] || 0) + r.positionValue);
-    labels = Object.keys(by); data = Object.values(by);
+    const pairs = Object.entries(by).map(([l, v]) => ({ l, v })).sort((a, b) => b.v - a.v);
+    labels = pairs.map(p => p.l); data = pairs.map(p => Math.round(p.v * 100) / 100);
   } else {
-    labels = rows.map(r => r.ticker); data = rows.map(r => r.positionValue);
+    // Mismo orden que Ganadoras/perdedoras (por valor de posición, desc).
+    const rows = rvRowsAlineadas();
+    labels = rows.map(r => r.ticker); data = rows.map(r => Math.round((r.positionValue || 0) * 100) / 100);
   }
-  // Ordena de mayor a menor y dibuja barras horizontales con la escala visible.
-  const pairs = labels.map((l, i) => ({ l, v: data[i] })).sort((a, b) => b.v - a.v);
-  labels = pairs.map(p => p.l); data = pairs.map(p => Math.round(p.v * 100) / 100);
   const total = data.reduce((a, b) => a + b, 0);
   const cv = document.getElementById('chart-dist');
-  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(220, labels.length * 26) + 'px';
+  if (cv && cv.parentElement) cv.parentElement.style.height = rvChartHeight(labels.length);
   drawChart('dist', 'chart-dist', {
     type: 'bar',
     data: { labels, datasets: [{ data, backgroundColor: '#3b82f6', borderRadius: 4 }] },
@@ -372,10 +343,9 @@ function renderWinLoss() {
   // Mismo conjunto y orden que el gráfico de tenencias (Distribución por ticker):
   // ordenado por valor de posición, de mayor a menor, así cada ticker queda a la
   // misma altura en los dos gráficos. El color sigue marcando ganancia/pérdida.
-  const sel = consolidate(HOLDINGS).filter(r => r.positionValue > 0)
-    .sort((a, b) => (b.positionValue || 0) - (a.positionValue || 0));
+  const sel = rvRowsAlineadas();
   const cv = document.getElementById('chart-wl');
-  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(240, sel.length * 24) + 'px';
+  if (cv && cv.parentElement) cv.parentElement.style.height = rvChartHeight(sel.length);
   drawChart('wl', 'chart-wl', {
     type: 'bar',
     data: {
@@ -389,7 +359,7 @@ function renderWinLoss() {
         tooltip: { callbacks: { label: (ctx) => usd ? money(ctx.parsed.x) : ctx.parsed.x + '%' } },
       },
       scales: {
-        x: { ticks: { display: usd ? !HIDE_MONEY : true, callback: v => usd ? v : v + '%' } },
+        x: { ticks: { callback: v => (usd && HIDE_MONEY) ? '' : (usd ? v : v + '%') } },
         y: { ticks: { autoSkip: false, font: { size: 11 } } },
       },
     },
@@ -1243,7 +1213,7 @@ function bindEvents() {
     if (b.dataset.dist) { DIST_MODE = b.dataset.dist; renderDist(); }
     if (b.dataset.evo) { EVO_MODE = b.dataset.evo; renderEvolution(); }
     if (b.dataset.evog) { EVO_GROUP = b.dataset.evog; renderEvolution(); }
-    if (b.dataset.wl) { WL_MODE = b.dataset.wl; renderHoldPerf(); }
+    if (b.dataset.wl) { WL_MODE = b.dataset.wl; renderWinLoss(); }
     if (b.dataset.dview) { DISC_VIEW = b.dataset.dview; renderDiscoverResult(DISC_ITEMS, LAST_DISC_AI); }
     if (b.dataset.rfview) { RF_VIEW = b.dataset.rfview; renderRentaFija(); }
     if (b.dataset.rfgain) { RF_GAIN_MODE = b.dataset.rfgain; drawRfGain(); }
@@ -1609,6 +1579,9 @@ function rfDonut(id, c) {
 
 // ---- Rendimientos RF (análisis) ----
 let RF_GAIN_MODE = 'capital', RF_AN_ROWS = [], RF_GAIN_ANUAL = false;
+// Alto de fila compartido por los dos gráficos de RF (Valor y Ganancia), así
+// quedan alineados fila por fila (mismo orden, misma cantidad de especies).
+function rfChartHeight(n) { return Math.max(260, n * 30) + 'px'; }
 function drawRfGain() {
   const rows = RF_AN_ROWS; if (!rows.length) return;
   const cv = document.getElementById('rfa-gain'); if (!cv || typeof Chart === 'undefined') return;
@@ -1628,7 +1601,7 @@ function drawRfGain() {
   const note = document.getElementById('rfa-gain-note');
   if (note) note.textContent = (RF_GAIN_ANUAL && short.some(Boolean)) ? '* tenidas hace menos de 1 año: se muestra el acumulado (anualizarlas lo distorsiona).' : '';
   if (CHARTS['rfa-gain']) CHARTS['rfa-gain'].destroy();
-  if (cv.parentElement) cv.parentElement.style.height = Math.max(240, rows.length * 26) + 'px';
+  if (cv.parentElement) cv.parentElement.style.height = rfChartHeight(rows.length);
   const GREY = '#5f6c80', GREY2 = '#8a97a8';
   const capBar = (v, i) => marked(i) ? GREY : (RF_GAIN_MODE === 'ambas' ? '#3b82f6' : (v >= 0 ? '#34d399' : '#f87171'));
   const rentaBar = (i) => marked(i) ? GREY2 : '#34d399';
@@ -1711,7 +1684,7 @@ async function renderRfAnalisis() {
     <div class="muted-sm" style="margin:-4px 0 6px">Se arma con el snapshot diario de data912 (USD por nominal).</div>
     <div class="chart-wrap" style="height:220px"><canvas id="rfa-evo"></canvas></div>`;
   el.innerHTML = html;
-  // Mismo orden (por valor, de mayor a menor) para los dos gráficos.
+  // Mismo orden (por valor, de mayor a menor) para los dos gráficos alineados.
   const rowsOrdenadas = [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0));
   rfBarValor('rfa-dist', rowsOrdenadas);
   if (byYear.length) rfBarYear('rfa-year', byYear);
@@ -1757,7 +1730,7 @@ function rfBarValor(id, rows) {
   const tot = sorted.reduce((a, r) => a + (r.valorActual || 0), 0);
   const labels = sorted.map(r => r.ticker);
   const data = sorted.map(r => round2(r.valorActual || 0));
-  if (cv.parentElement) cv.parentElement.style.height = Math.max(220, sorted.length * 26) + 'px';
+  if (cv.parentElement) cv.parentElement.style.height = rfChartHeight(sorted.length);
   CHARTS[id] = new Chart(cv, {
     type: 'bar',
     data: { labels, datasets: [{ data, backgroundColor: '#3b82f6', borderRadius: 4 }] },
