@@ -1603,15 +1603,17 @@ function drawRfGain() {
     // Leyenda de colores FUERA del gráfico (si estuviera dentro, en modo "Ambas"
     // empujaría las barras hacia abajo y se desalinearían con el de la izquierda).
     const sq = (c) => `<span style="display:inline-block;width:9px;height:9px;background:${c};border-radius:2px;margin:0 4px -1px 0"></span>`;
-    const leg = RF_GAIN_MODE === 'ambas' ? `<span style="margin-right:12px">${sq('#3b82f6')}Capital ${sq('#34d399')}Renta</span>` : '';
+    const leg = RF_GAIN_MODE === 'ambas' ? `<span style="margin-right:12px">${sq('#34d399')}Capital ${sq('#a78bfa')}Renta</span>` : '';
     const corta = (RF_GAIN_ANUAL && short.some(Boolean)) ? '* tenidas hace menos de 1 año: se muestra el acumulado (anualizarlas lo distorsiona).' : '';
     note.innerHTML = leg + corta;
   }
   if (CHARTS['rfa-gain']) CHARTS['rfa-gain'].destroy();
   if (cv.parentElement) cv.parentElement.style.height = rfChartHeight(rows.length);
   const GREY = '#5f6c80', GREY2 = '#8a97a8';
-  const capBar = (v, i) => marked(i) ? GREY : (RF_GAIN_MODE === 'ambas' ? '#3b82f6' : (v >= 0 ? '#34d399' : '#f87171'));
-  const rentaBar = (i) => marked(i) ? GREY2 : '#34d399';
+  // Capital verde (rojo si es negativo), como en renta variable; renta en violeta
+  // para diferenciarla. El color no cambia entre modos y coincide con la leyenda.
+  const capBar = (v, i) => marked(i) ? GREY : (v >= 0 ? '#34d399' : '#f87171');
+  const rentaBar = (i) => marked(i) ? GREY2 : '#a78bfa';
   let datasets, stacked = false;
   if (RF_GAIN_MODE === 'renta') datasets = [{ data: rentaPct, backgroundColor: rentaPct.map((v, i) => rentaBar(i)), borderRadius: 4 }];
   else if (RF_GAIN_MODE === 'ambas') { stacked = true; datasets = [{ label: 'Capital', data: capPct, backgroundColor: capPct.map((v, i) => capBar(v, i)), borderRadius: 4 }, { label: 'Renta', data: rentaPct, backgroundColor: rentaPct.map((v, i) => rentaBar(i)), borderRadius: 4 }]; }
