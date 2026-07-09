@@ -1633,9 +1633,9 @@ async function renderRfAnalisis() {
     { label: 'Posiciones', value: String(t.posiciones || rows.length) },
   ]);
   html += `<div class="grid2" style="margin-top:16px">
-    <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head"><h2 style="font-size:15px">Valor por especie</h2><span class="muted-sm">USD · % en el tooltip</span></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-dist"></canvas></div></div>
+    <div class="panel" style="box-shadow:none;border:1px solid var(--line)"><div class="panel-head" style="min-height:40px"><h2 style="font-size:15px">Valor por especie</h2><span class="muted-sm">USD · % en el tooltip</span></div><div class="chart-wrap" style="height:240px"><canvas id="rfa-dist"></canvas></div></div>
     <div class="panel" style="box-shadow:none;border:1px solid var(--line)">
-      <div class="panel-head" style="flex-wrap:wrap;gap:6px"><h2 style="font-size:15px">Ganancia (%)</h2>
+      <div class="panel-head" style="flex-wrap:nowrap;gap:6px;min-height:40px"><h2 style="font-size:15px">Ganancia (%)</h2>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <div class="seg">
             <button class="seg-btn ${RF_GAIN_MODE === 'capital' ? 'active' : ''}" data-rfgain="capital">Capital</button>
