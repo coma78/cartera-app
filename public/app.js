@@ -350,7 +350,7 @@ function renderWinLoss() {
     type: 'bar',
     data: {
       labels: sel.map(r => r.ticker),
-      datasets: [{ data: sel.map(r => r[key] != null ? r[key] : 0), backgroundColor: sel.map(r => (r[key] || 0) >= 0 ? '#0a7d33' : '#c0271a') }],
+      datasets: [{ data: sel.map(r => r[key] != null ? r[key] : 0), backgroundColor: sel.map(r => (r[key] || 0) >= 0 ? '#0a7d33' : '#c0271a'), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', maintainAspectRatio: false,
