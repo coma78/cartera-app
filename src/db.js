@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { suggestRatio, setTypeOverrides } from './ratios.js';
+import { setRegionOverrides } from './universe.js';
 
 const { Pool } = pg;
 
@@ -83,6 +84,7 @@ export async function migrate() {
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date DATE;`);
   await query(`ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
   await query(`ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS tipo TEXT;`);
+  await query(`ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS region TEXT;`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS reports (
@@ -230,34 +232,43 @@ const normTipo = (t) => {
   return TIPOS.find((x) => x.toLowerCase() === v.toLowerCase()) || null;
 };
 
+const REGIONES = ['EEUU', 'Latam', 'Brasil', 'Argentina', 'México', 'Chile', 'China', 'Europa', 'Asia', 'Global'];
+const normRegion = (r) => {
+  const v = String(r || '').trim();
+  return REGIONES.find((x) => x.toLowerCase() === v.toLowerCase()) || null;
+};
+
 export async function listWatchlist() {
   const { rows } = await query('SELECT * FROM watchlist ORDER BY ticker ASC');
-  // El tipo guardado manda por sobre la lista fija de ETFs.
+  // Lo elegido a mano manda por sobre las listas fijas del código.
   setTypeOverrides(rows);
+  setRegionOverrides(rows);
   return rows;
 }
 
-export async function addWatch({ ticker, ratio, notes, tipo }) {
+export async function addWatch({ ticker, ratio, notes, tipo, region }) {
   const sym = ticker.toUpperCase().trim();
   const r = ratio && Number(ratio) > 0 ? Number(ratio) : suggestRatio(sym);
   const { rows } = await query(
-    `INSERT INTO watchlist (ticker, ratio, notes, tipo) VALUES ($1, $2, $3, $4)
+    `INSERT INTO watchlist (ticker, ratio, notes, tipo, region) VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (ticker) DO UPDATE SET notes = EXCLUDED.notes, ratio = EXCLUDED.ratio,
-       tipo = COALESCE(EXCLUDED.tipo, watchlist.tipo)
+       tipo = COALESCE(EXCLUDED.tipo, watchlist.tipo),
+       region = COALESCE(EXCLUDED.region, watchlist.region)
      RETURNING *`,
-    [sym, r, notes || '', normTipo(tipo)]
+    [sym, r, notes || '', normTipo(tipo), normRegion(region)]
   );
   return rows[0];
 }
 
-export async function updateWatch(id, { ratio, notes, tipo }) {
+export async function updateWatch(id, { ratio, notes, tipo, region }) {
   const { rows } = await query(
     `UPDATE watchlist
-       SET ratio = COALESCE($2, ratio),
-           notes = COALESCE($3, notes),
-           tipo  = COALESCE($4, tipo)
+       SET ratio  = COALESCE($2, ratio),
+           notes  = COALESCE($3, notes),
+           tipo   = COALESCE($4, tipo),
+           region = COALESCE($5, region)
      WHERE id = $1 RETURNING *`,
-    [id, ratio != null ? Number(ratio) : null, notes ?? null, normTipo(tipo)]
+    [id, ratio != null ? Number(ratio) : null, notes ?? null, normTipo(tipo), normRegion(region)]
   );
   return rows[0];
 }

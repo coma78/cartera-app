@@ -124,6 +124,23 @@ const DEFENSIVE = new Set(['Salud', 'Consumo básico', 'Utilities']);
 // ETFs apalancados (2x/3x, incluidos inversos).
 export const LEVERAGED = new Set(['TQQQ', 'SPXL', 'UPRO', 'SOXL', 'TECL', 'SQQQ', 'TNA', 'FAS', 'LABU', 'SPXS']);
 
+// ---- Región por ticker (para la exposición geográfica) ----
+// Prioridad: región elegida a mano en el catálogo > universo curado > "Sin clasificar".
+const REGION_BY_TICKER = new Map(RAW.map(([t, , r]) => [t.toUpperCase(), r]));
+const REGION_OVERRIDES = new Map();
+export function setRegionOverrides(rows = []) {
+  REGION_OVERRIDES.clear();
+  for (const r of rows) {
+    const t = String(r?.ticker || '').toUpperCase().trim();
+    const reg = String(r?.region || '').trim();
+    if (t && reg) REGION_OVERRIDES.set(t, reg);
+  }
+}
+export function tickerRegion(ticker) {
+  const t = String(ticker || '').toUpperCase().trim();
+  return REGION_OVERRIDES.get(t) || REGION_BY_TICKER.get(t) || 'Sin clasificar';
+}
+
 export function filterUniverse({ region, sector, type } = {}) {
   return CEDEAR_UNIVERSE.filter((u) => {
     if (region && region !== 'Todas') {

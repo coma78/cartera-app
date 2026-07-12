@@ -2,6 +2,7 @@ import { listHoldings, listWatchlist, saveReport } from './db.js';
 import { getQuotesBatch, getNews } from './marketData.js';
 import { analyzeHolding, analyzeWatch, portfolioSummary } from './analysis.js';
 import { tickerType } from './ratios.js';
+import { tickerRegion } from './universe.js';
 import { sendEmail, emailConfigured } from './email.js';
 
 const CURRENCY = process.env.CURRENCY || 'USD';
@@ -27,7 +28,7 @@ function color(n) {
 function degradedHolding(h) {
   const ratio = Number(h.ratio) > 0 ? Number(h.ratio) : 1;
   return {
-    id: h.id, ticker: h.ticker, type: tickerType(h.ticker),
+    id: h.id, ticker: h.ticker, type: tickerType(h.ticker), region: tickerRegion(h.ticker),
     buy_price: Number(h.buy_price), quantity: Number(h.quantity) || 0, ratio,
     purchase_date: h.purchase_date || null,
     price: null, cedearPrice: null, changePct: null, change: null,

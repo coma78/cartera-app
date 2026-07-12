@@ -256,7 +256,7 @@ function applyFilters(lots, f) {
 function consolidate(lots) {
   const by = {};
   for (const h of lots) {
-    const g = (by[h.ticker] ??= { ticker: h.ticker, type: h.type, ratio: h.ratio, price: h.price, changePct: h.changePct, quantity: 0, shares: 0, cost: 0, value: 0, lots: 0 });
+    const g = (by[h.ticker] ??= { ticker: h.ticker, type: h.type, region: h.region, ratio: h.ratio, price: h.price, changePct: h.changePct, quantity: 0, shares: 0, cost: 0, value: 0, lots: 0 });
     const shares = h.ratio > 0 ? h.quantity / h.ratio : 0;
     g.quantity += h.quantity; g.shares += shares; g.cost += h.positionCost || 0; g.value += h.positionValue || 0; g.lots += 1;
   }
@@ -264,7 +264,7 @@ function consolidate(lots) {
     const plAbs = round2(g.value - g.cost);
     const plPct = g.cost > 0 ? round2((plAbs / g.cost) * 100) : null;
     return {
-      ticker: g.ticker, type: g.type, ratio: g.ratio, price: g.price, changePct: g.changePct,
+      ticker: g.ticker, type: g.type, region: g.region || 'Sin clasificar', ratio: g.ratio, price: g.price, changePct: g.changePct,
       quantity: g.quantity, buy_price: g.shares > 0 ? round2(g.cost / g.shares) : null,
       positionValue: round2(g.value), positionCost: round2(g.cost), plAbs, plPct, lots: g.lots,
     };
@@ -297,7 +297,53 @@ function renderResumen() {
   const plp = document.getElementById('s-plpct'); plp.textContent = pctStr(t.plPct); plp.className = 'card-value ' + cls(t.plPct);
   document.getElementById('s-count').textContent = HOLDINGS.length;
   if (typeof Chart === 'undefined') return;
-  renderDist(); renderWinLoss(); renderEvolution(); renderYearTable();
+  renderDist(); renderWinLoss(); renderGeo(); renderEvolution(); renderYearTable();
+}
+
+// Exposición geográfica: cuánta plata tenés en cada región, de mayor a menor.
+function renderGeo() {
+  const rows = consolidate(HOLDINGS).filter(r => r.positionValue > 0);
+  const by = {};
+  rows.forEach(r => {
+    const reg = r.region || 'Sin clasificar';
+    (by[reg] ??= { valor: 0, tickers: [] });
+    by[reg].valor += r.positionValue || 0;
+    by[reg].tickers.push(r.ticker);
+  });
+  const pairs = Object.entries(by).map(([reg, v]) => ({ reg, ...v })).sort((a, b) => b.valor - a.valor);
+  const total = pairs.reduce((a, p) => a + p.valor, 0);
+  const cv = document.getElementById('chart-geo');
+  if (cv && cv.parentElement) cv.parentElement.style.height = Math.max(200, pairs.length * 38) + 'px';
+  const COLORS = { EEUU: '#1a5fb4', Latam: '#e08a00', Brasil: '#2f9e44', China: '#c0271a', Argentina: '#17a2b8', Global: '#6f42c1', México: '#d63384', Chile: '#0c5460', Europa: '#3b5bdb', Asia: '#e8590c' };
+  const note = document.getElementById('geo-note');
+  if (note) {
+    const sin = by['Sin clasificar'];
+    note.textContent = sin
+      ? `Sin región asignada: ${sin.tickers.join(', ')} — cargala en el Catálogo (editar ticker → Región).`
+      : 'Los ETFs globales (EEM, VEA) son canastas de muchos países, por eso van como "Global".';
+  }
+  drawChart('geo', 'chart-geo', {
+    type: 'bar',
+    data: {
+      labels: pairs.map(p => p.reg),
+      datasets: [{ data: pairs.map(p => round2(p.valor)), backgroundColor: pairs.map(p => COLORS[p.reg] || '#5f6c80'), borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (x) => {
+          const p = pairs[x.dataIndex];
+          const pct = total > 0 ? round2(p.valor / total * 100) : 0;
+          return [`${money(p.valor)} · ${pct}%`, p.tickers.join(', ')];
+        } } },
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } },
+        y: { ticks: { autoSkip: false, font: { size: 12 } } },
+      },
+    },
+  });
 }
 
 // Alto de fila COMPARTIDO por Distribución y Ganadoras/perdedoras, así las dos
@@ -1048,13 +1094,17 @@ function openWatchForm(w = null) {
   const tipoActual = w?.tipo || tType(w?.ticker);
   const opts = ['Acción', 'ETF', 'ETF apalancado']
     .map(o => `<option${o === tipoActual ? ' selected' : ''}>${o}</option>`).join('');
+  const regionActual = w?.region || '';
+  const regOpts = ['', 'EEUU', 'Latam', 'Brasil', 'Argentina', 'México', 'Chile', 'China', 'Europa', 'Asia', 'Global']
+    .map(o => `<option value="${o}"${o === regionActual ? ' selected' : ''}>${o || '(automática)'}</option>`).join('');
   document.getElementById('modal-body').innerHTML =
     field('Ticker (ej. NVDA)', 'wticker', w?.ticker || '', 'text', 'NVDA') +
     `<label>Tipo</label><select id="f-wtipo">${opts}</select>` +
+    `<label>Región</label><select id="f-wregion">${regOpts}</select>` +
     field('Ratio (CEDEARs por acción)', 'wratio', w?.ratio ?? '', 'number', '1') +
     field('Notas (opcional)', 'wnotes', w?.notes || '');
   const tEl = document.getElementById('f-wticker'), rEl = document.getElementById('f-wratio');
-  const tipoEl = document.getElementById('f-wtipo');
+  const tipoEl = document.getElementById('f-wtipo'), regEl = document.getElementById('f-wregion');
   if (w) tEl.setAttribute('readonly', 'true');
   const fill = () => {
     const sym = tEl.value.toUpperCase().trim();
@@ -1064,10 +1114,10 @@ function openWatchForm(w = null) {
   };
   tEl.addEventListener('input', fill); tEl.addEventListener('blur', fill);
   document.getElementById('modal-save').onclick = async () => {
-    const body = { ticker: tEl.value.trim(), tipo: tipoEl.value, ratio: parseFloat(rEl.value) || null, notes: document.getElementById('f-wnotes').value };
+    const body = { ticker: tEl.value.trim(), tipo: tipoEl.value, region: regEl.value || null, ratio: parseFloat(rEl.value) || null, notes: document.getElementById('f-wnotes').value };
     if (!body.ticker) return toast('El ticker es obligatorio');
     try {
-      if (w) await api('/watchlist/' + w.id, { method: 'PUT', body: JSON.stringify({ ratio: body.ratio, notes: body.notes, tipo: body.tipo }) });
+      if (w) await api('/watchlist/' + w.id, { method: 'PUT', body: JSON.stringify({ ratio: body.ratio, notes: body.notes, tipo: body.tipo, region: body.region }) });
       else await api('/watchlist', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Guardado'); await loadAll();
     } catch (e) { toast(e.message); }
