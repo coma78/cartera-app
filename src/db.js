@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { suggestRatio } from './ratios.js';
+import { suggestRatio, setTypeOverrides } from './ratios.js';
 
 const { Pool } = pg;
 
@@ -82,6 +82,7 @@ export async function migrate() {
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
   await query(`ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date DATE;`);
   await query(`ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS ratio NUMERIC NOT NULL DEFAULT 1;`);
+  await query(`ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS tipo TEXT;`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS reports (
@@ -222,30 +223,41 @@ export async function addHoldingsBulk(items = []) {
 }
 
 // ---------- Watchlist ----------
+// Tipos válidos que puede elegir el usuario. Si no elige, se infiere del ticker.
+const TIPOS = ['Acción', 'ETF', 'ETF apalancado'];
+const normTipo = (t) => {
+  const v = String(t || '').trim();
+  return TIPOS.find((x) => x.toLowerCase() === v.toLowerCase()) || null;
+};
+
 export async function listWatchlist() {
   const { rows } = await query('SELECT * FROM watchlist ORDER BY ticker ASC');
+  // El tipo guardado manda por sobre la lista fija de ETFs.
+  setTypeOverrides(rows);
   return rows;
 }
 
-export async function addWatch({ ticker, ratio, notes }) {
+export async function addWatch({ ticker, ratio, notes, tipo }) {
   const sym = ticker.toUpperCase().trim();
   const r = ratio && Number(ratio) > 0 ? Number(ratio) : suggestRatio(sym);
   const { rows } = await query(
-    `INSERT INTO watchlist (ticker, ratio, notes) VALUES ($1, $2, $3)
-     ON CONFLICT (ticker) DO UPDATE SET notes = EXCLUDED.notes, ratio = EXCLUDED.ratio
+    `INSERT INTO watchlist (ticker, ratio, notes, tipo) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (ticker) DO UPDATE SET notes = EXCLUDED.notes, ratio = EXCLUDED.ratio,
+       tipo = COALESCE(EXCLUDED.tipo, watchlist.tipo)
      RETURNING *`,
-    [sym, r, notes || '']
+    [sym, r, notes || '', normTipo(tipo)]
   );
   return rows[0];
 }
 
-export async function updateWatch(id, { ratio, notes }) {
+export async function updateWatch(id, { ratio, notes, tipo }) {
   const { rows } = await query(
     `UPDATE watchlist
        SET ratio = COALESCE($2, ratio),
-           notes = COALESCE($3, notes)
+           notes = COALESCE($3, notes),
+           tipo  = COALESCE($4, tipo)
      WHERE id = $1 RETURNING *`,
-    [id, ratio != null ? Number(ratio) : null, notes ?? null]
+    [id, ratio != null ? Number(ratio) : null, notes ?? null, normTipo(tipo)]
   );
   return rows[0];
 }

@@ -38,6 +38,21 @@ export const CEDEAR_ETFS = new Set([
   'DIA', 'IWM', 'EFA', 'ARKK', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV',
 ]);
 
+// Tipos elegidos a mano en el catálogo (watchlist.tipo). Se refrescan cada vez
+// que se lee la watchlist y tienen prioridad sobre la lista fija de arriba, así
+// un ticker nuevo (ej. un ETF que no está en CEDEAR_ETFS) queda bien clasificado.
+const TYPE_OVERRIDES = new Map();
+export function setTypeOverrides(rows = []) {
+  TYPE_OVERRIDES.clear();
+  for (const r of rows) {
+    const t = String(r?.ticker || '').toUpperCase().trim();
+    const tipo = String(r?.tipo || '').trim();
+    if (t && tipo) TYPE_OVERRIDES.set(t, tipo);
+  }
+}
+
 export function tickerType(ticker) {
-  return CEDEAR_ETFS.has((ticker || '').toUpperCase().trim()) ? 'ETF' : 'Acción';
+  const t = (ticker || '').toUpperCase().trim();
+  if (TYPE_OVERRIDES.has(t)) return TYPE_OVERRIDES.get(t);
+  return CEDEAR_ETFS.has(t) ? 'ETF' : 'Acción';
 }

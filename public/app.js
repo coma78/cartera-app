@@ -5,7 +5,13 @@ let CONFIG = {};
 let RATIOS = {};
 const ETFS = new Set(['SPY', 'QQQ', 'EEM', 'EWZ', 'FXI', 'VEA', 'XLV', 'SPXL', 'TQQQ', 'DIA', 'IWM', 'EFA', 'ARKK', 'XLF', 'XLE', 'XLK', 'GLD', 'SLV', 'UPRO', 'SOXL', 'TECL', 'XLP', 'XLU']);
 const LEVERAGED = new Set(['TQQQ', 'SPXL', 'UPRO', 'SOXL', 'TECL', 'SQQQ', 'TNA', 'FAS', 'LABU', 'SPXS']);
-const tType = (t) => ETFS.has((t || '').toUpperCase()) ? 'ETF' : 'Acción';
+// El tipo elegido en el catálogo manda; si no hay, se infiere del ticker.
+const tType = (t) => {
+  const sym = (t || '').toUpperCase().trim();
+  const c = (Array.isArray(CATALOG) ? CATALOG : []).find(x => String(x.ticker || '').toUpperCase() === sym);
+  if (c && c.tipo) return c.tipo;
+  return ETFS.has(sym) ? 'ETF' : 'Acción';
+};
 
 let HOLDINGS = [];
 let CATALOG = [];
@@ -1039,19 +1045,29 @@ function openRatioChange(w) {
 
 function openWatchForm(w = null) {
   document.getElementById('modal-title').textContent = w ? `Editar ${w.ticker}` : 'Agregar ticker';
+  const tipoActual = w?.tipo || tType(w?.ticker);
+  const opts = ['Acción', 'ETF', 'ETF apalancado']
+    .map(o => `<option${o === tipoActual ? ' selected' : ''}>${o}</option>`).join('');
   document.getElementById('modal-body').innerHTML =
     field('Ticker (ej. NVDA)', 'wticker', w?.ticker || '', 'text', 'NVDA') +
+    `<label>Tipo</label><select id="f-wtipo">${opts}</select>` +
     field('Ratio (CEDEARs por acción)', 'wratio', w?.ratio ?? '', 'number', '1') +
     field('Notas (opcional)', 'wnotes', w?.notes || '');
   const tEl = document.getElementById('f-wticker'), rEl = document.getElementById('f-wratio');
+  const tipoEl = document.getElementById('f-wtipo');
   if (w) tEl.setAttribute('readonly', 'true');
-  const fill = () => { const s = RATIOS[tEl.value.toUpperCase().trim()]; if (s && !rEl.value) rEl.value = s; };
+  const fill = () => {
+    const sym = tEl.value.toUpperCase().trim();
+    const s = RATIOS[sym]; if (s && !rEl.value) rEl.value = s;
+    // Sugerencia de tipo por el ticker (el usuario la puede cambiar).
+    if (!w && sym && ETFS.has(sym)) tipoEl.value = LEVERAGED.has(sym) ? 'ETF apalancado' : 'ETF';
+  };
   tEl.addEventListener('input', fill); tEl.addEventListener('blur', fill);
   document.getElementById('modal-save').onclick = async () => {
-    const body = { ticker: tEl.value.trim(), ratio: parseFloat(rEl.value) || null, notes: document.getElementById('f-wnotes').value };
+    const body = { ticker: tEl.value.trim(), tipo: tipoEl.value, ratio: parseFloat(rEl.value) || null, notes: document.getElementById('f-wnotes').value };
     if (!body.ticker) return toast('El ticker es obligatorio');
     try {
-      if (w) await api('/watchlist/' + w.id, { method: 'PUT', body: JSON.stringify({ ratio: body.ratio, notes: body.notes }) });
+      if (w) await api('/watchlist/' + w.id, { method: 'PUT', body: JSON.stringify({ ratio: body.ratio, notes: body.notes, tipo: body.tipo }) });
       else await api('/watchlist', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Guardado'); await loadAll();
     } catch (e) { toast(e.message); }

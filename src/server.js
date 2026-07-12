@@ -149,9 +149,9 @@ app.post('/api/holdings/bulk', wrap(async (req, res) => {
 // ---- Watchlist (ABM) ----
 app.get('/api/watchlist', wrap(async (_req, res) => res.json(await listWatchlist())));
 app.post('/api/watchlist', wrap(async (req, res) => {
-  const { ticker, ratio, notes } = req.body;
+  const { ticker, ratio, notes, tipo } = req.body;
   if (!ticker) return res.status(400).json({ error: 'ticker es obligatorio' });
-  res.json(await addWatch({ ticker, ratio, notes }));
+  res.json(await addWatch({ ticker, ratio, notes, tipo }));
 }));
 app.put('/api/watchlist/:id', wrap(async (req, res) => {
   res.json(await updateWatch(Number(req.params.id), req.body));
