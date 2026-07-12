@@ -37,10 +37,67 @@ export function classify(especie, ticker) {
 export const isRF = (clase) => clase === 'ON' || clase === 'Bono';
 
 // Nombre del emisor a partir de la especie (limpia el prefijo del tipo).
+// El broker informa la especie completa ("YPF SOCIEDAD ANON REGS 8.25% V 17/01/34").
+// Para medir concentración necesitamos el EMISOR (YPF), agrupando todas sus series.
+// Primero probamos una tabla de emisores conocidos; si no, limpiamos la descripción.
+const EMISORES = [
+  [/YPF\s*(ENERGIA|LUZ)/, 'YPF Luz'],
+  [/\bYPF\b/, 'YPF'],
+  [/TELECOM/, 'Telecom Argentina'],
+  [/PAN\s*AMERICAN/, 'Pan American Energy'],
+  [/VISTA/, 'Vista Energy'],
+  [/\bIRSA\b/, 'IRSA'],
+  [/EDENOR/, 'Edenor'],
+  [/MSU\s*GREEN/, 'MSU Green Energy'],
+  [/\bMSU\b/, 'MSU Energy'],
+  [/TESORO\s*NACIONAL|BONAR|\bGD\d|\bAL\d|\bAE\d|\bAO\d/, 'Tesoro Nacional'],
+  [/BOPREAL|BANCO\s*CENTRAL|\bBCRA\b/, 'BCRA (Bopreal)'],
+  [/PAMPA/, 'Pampa Energía'],
+  [/GENNEIA/, 'Genneia'],
+  [/CRESUD/, 'Cresud'],
+  [/ARCOR/, 'Arcor'],
+  [/TRANSPORTADORA|\bTGS\b/, 'TGS'],
+  [/ALUAR/, 'Aluar'],
+  [/CAPEX/, 'Capex'],
+  [/LOMA\s*NEGRA/, 'Loma Negra'],
+  [/RAGHSA/, 'Raghsa'],
+  [/GALICIA/, 'Banco Galicia'],
+  [/MACRO/, 'Banco Macro'],
+  [/SUPERVIELLE/, 'Supervielle'],
+  [/AEROPUERTOS|AA2000/, 'Aeropuertos Argentina 2000'],
+  [/ALBANESI|GENERACION\s*MEDITERR|GEMSA/, 'Albanesi'],
+  [/TECPETROL/, 'Tecpetrol'],
+  [/CELULOSA/, 'Celulosa Argentina'],
+  [/SAN\s*MIGUEL/, 'San Miguel'],
+  [/NEWSAN/, 'Newsan'],
+  [/CGC|CIA\s*GRAL\s*DE\s*COMBUSTIBLE/, 'CGC'],
+  [/BIOCERES|RIZOBACTER/, 'Bioceres'],
+  [/CLISA/, 'Clisa'],
+  [/PETROQUIMICA|PECOM/, 'Petroquímica Comodoro'],
+];
+
 export function emisorFrom(especie) {
-  let e = String(especie || '').trim();
-  e = e.replace(/^(ON|BONOS?|BOPREAL)\s+/i, '');
-  return e || '—';
+  const raw = String(especie || '').trim();
+  if (!raw) return '—';
+  // Sin acentos y en mayúsculas para poder matchear.
+  const up = raw.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  for (const [re, nombre] of EMISORES) if (re.test(up)) return nombre;
+
+  // Fallback: corto la descripción donde empiezan tasa/vencimiento/serie y
+  // saco el ruido societario, quedándome con las primeras palabras.
+  let e = up
+    .replace(/^(ON|OBLIGACION(ES)?\s*NEGOCIABLE(S)?|BONOS?|BOPREAL|LETRA)\s+/i, '')
+    .split(/\s+(?:REGS?|CLASE|SERIE|VTO\.?|V\.?\s*\d|U\$S|USD|CG|EUROCLEAR)\b/)[0]
+    .split(/\s+\d/)[0]                                   // corta en el primer número (tasa/fecha)
+    .replace(/\b(S\.?A\.?U?|SOCIEDAD\s*ANON(IMA)?|S\.?R\.?L\.?|INVERSIONES|ARGENT(INA)?)\b/g, '')
+    .replace(/[.,%-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!e) return raw;
+  // Máximo 3 palabras, en formato Título.
+  return e.split(' ').slice(0, 3)
+    .map(w => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' ');
 }
 
 // ---------- MEP implícito ----------
@@ -307,7 +364,9 @@ export function computePortfolio({ trades = [], prices = {}, payments = [], inco
     rows.push({
       ticker: tk,
       clase: arr[0].clase,
-      emisor: arr[0].emisor || '',
+      // Se re-deriva siempre desde la especie: así los boletos ya importados
+      // (que guardaron la descripción completa) quedan agrupados por emisor.
+      emisor: emisorFrom(arr[0].especie || arr[0].emisor || tk),
       vn: r2(vnVigente),
       vnOriginal: r2(vn),
       amortizado: r2(amortPast),
