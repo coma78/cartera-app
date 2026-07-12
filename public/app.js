@@ -1836,8 +1836,8 @@ function rfBarEmisor(id, rows) {
   const pairs = Object.entries(by).map(([em, v]) => ({ em, ...v })).sort((a, b) => b.valor - a.valor);
   const total = pairs.reduce((a, p) => a + p.valor, 0);
   const pctOf = (v) => total > 0 ? (v / total * 100) : 0;
-  // Rojo si un emisor supera el 30% de la cartera, ámbar arriba del 20%.
-  const color = (v) => { const p = pctOf(v); return p >= 30 ? '#c0271a' : p >= 20 ? '#e0a800' : '#1a5fb4'; };
+  // Un color por emisor (la alerta de concentración va en el texto de abajo).
+  const cols = palette(pairs.length);
   if (cv.parentElement) cv.parentElement.style.height = Math.max(200, pairs.length * 30) + 'px';
   const note = document.getElementById('rfa-emisor-note');
   if (note) {
@@ -1849,7 +1849,7 @@ function rfBarEmisor(id, rows) {
   }
   CHARTS[id] = new Chart(cv, {
     type: 'bar',
-    data: { labels: pairs.map(p => p.em), datasets: [{ data: pairs.map(p => round2(p.valor)), backgroundColor: pairs.map(p => color(p.valor)), borderRadius: 4 }] },
+    data: { labels: pairs.map(p => p.em), datasets: [{ data: pairs.map(p => round2(p.valor)), backgroundColor: cols, borderRadius: 4 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: {

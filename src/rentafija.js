@@ -82,6 +82,9 @@ export function emisorFrom(especie) {
   // Sin acentos y en mayúsculas para poder matchear.
   const up = raw.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
   for (const [re, nombre] of EMISORES) if (re.test(up)) return nombre;
+  // Si no hay descripción (ej. cargado a mano) llega el ticker pelado: lo dejo
+  // tal cual, en mayúsculas, para no inventar un nombre de emisor.
+  if (!/\s/.test(up) && up.length <= 6) return up;
 
   // Fallback: corto la descripción donde empiezan tasa/vencimiento/serie y
   // saco el ruido societario, quedándome con las primeras palabras.
