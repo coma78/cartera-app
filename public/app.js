@@ -1742,6 +1742,10 @@ async function renderRfAnalisis() {
           [1, 0, 0, 0])}</div>
       </div>`;
   }
+  html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Exposición por emisor</h2>
+      <span class="muted-sm">concentración: cuánta plata tenés en cada emisor</span></div>
+    <div class="chart-wrap" style="height:240px"><canvas id="rfa-emisor"></canvas></div>
+    <div id="rfa-emisor-note" class="muted-sm" style="margin-top:6px"></div>`;
   html += `<div class="panel-head" style="margin-top:16px"><h2 style="font-size:15px">Detalle por especie</h2></div>`;
   const diasAnios = (d, a) => d == null ? '—' : `${nf(d)} Días <span class="muted-sm">(${(Number(a) || 0).toFixed(2).replace('.', ',')} Años)</span>`;
   html += rfTable(['Ticker', 'Valor', 'Peso', 'Gan. capital', 'Renta cobrada', 'Tenencia', 'Al vto.'],
@@ -1762,6 +1766,7 @@ async function renderRfAnalisis() {
   // Mismo orden (por valor, de mayor a menor) para los dos gráficos alineados.
   const rowsOrdenadas = [...rows].sort((a, b) => (b.valorActual || 0) - (a.valorActual || 0));
   rfBarValor('rfa-dist', rowsOrdenadas);
+  rfBarEmisor('rfa-emisor', rows);
   if (byYear.length) rfBarYear('rfa-year', byYear);
   RF_AN_ROWS = rowsOrdenadas;
   drawRfGain();
@@ -1813,6 +1818,51 @@ function rfBarValor(id, rows) {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (x) => `${(CONFIG.currency || 'USD')} ${Number(x.raw).toLocaleString('es-AR')} · ${tot > 0 ? round2(x.raw / tot * 100) : 0}%` } } },
       scales: { x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } }, y: { ticks: { autoSkip: false, font: { size: 11 } } } },
+    },
+  });
+}
+// Exposición por emisor: en renta fija el riesgo no es geográfico (todos son
+// emisores argentinos) sino de CONCENTRACIÓN. Si un emisor pesa mucho, se marca.
+function rfBarEmisor(id, rows) {
+  const cv = document.getElementById(id); if (!cv || typeof Chart === 'undefined') return;
+  if (CHARTS[id]) CHARTS[id].destroy();
+  const by = {};
+  rows.forEach(r => {
+    const em = (r.emisor || '').trim() || r.ticker;
+    (by[em] ??= { valor: 0, tickers: [] });
+    by[em].valor += r.valorActual || 0;
+    by[em].tickers.push(r.ticker);
+  });
+  const pairs = Object.entries(by).map(([em, v]) => ({ em, ...v })).sort((a, b) => b.valor - a.valor);
+  const total = pairs.reduce((a, p) => a + p.valor, 0);
+  const pctOf = (v) => total > 0 ? (v / total * 100) : 0;
+  // Rojo si un emisor supera el 30% de la cartera, ámbar arriba del 20%.
+  const color = (v) => { const p = pctOf(v); return p >= 30 ? '#c0271a' : p >= 20 ? '#e0a800' : '#1a5fb4'; };
+  if (cv.parentElement) cv.parentElement.style.height = Math.max(200, pairs.length * 30) + 'px';
+  const note = document.getElementById('rfa-emisor-note');
+  if (note) {
+    const top = pairs[0];
+    const alto = pairs.filter(p => pctOf(p.valor) >= 20);
+    note.textContent = alto.length
+      ? `Concentración alta: ${alto.map(p => `${p.em} (${round2(pctOf(p.valor))}%)`).join(', ')}. Si ese emisor tiene problemas, te pega en todos sus papeles.`
+      : (top ? `Emisor más pesado: ${top.em} (${round2(pctOf(top.valor))}%). Cartera razonablemente repartida.` : '');
+  }
+  CHARTS[id] = new Chart(cv, {
+    type: 'bar',
+    data: { labels: pairs.map(p => p.em), datasets: [{ data: pairs.map(p => round2(p.valor)), backgroundColor: pairs.map(p => color(p.valor)), borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (x) => {
+          const p = pairs[x.dataIndex];
+          return [`${money(p.valor)} · ${round2(pctOf(p.valor))}%`, p.tickers.join(', ')];
+        } } },
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { callback: (v) => v >= 1000 ? (v / 1000) + 'k' : v } },
+        y: { ticks: { autoSkip: false, font: { size: 11 } } },
+      },
     },
   });
 }
